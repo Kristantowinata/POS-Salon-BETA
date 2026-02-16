@@ -9,7 +9,7 @@ interface CheckoutProps {
     onNavigate?: (page: string) => void;
 }
 
-export default function Checkout({ onBack, onProceed, activePage = 'checkout', onNavigate }: CheckoutProps) {
+export default function Checkout({ onProceed, activePage = 'checkout', onNavigate }: CheckoutProps) {
     const [activeTab, setActiveTab] = useState('Services');
 
     const services = [

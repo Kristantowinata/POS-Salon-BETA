@@ -19,7 +19,7 @@ function App() {
             case 'reservations':
                 return <Reservations activePage="reservations" onNavigate={setCurrentPage} />;
             case 'checkout':
-                return <Checkout activePage="checkout" onNavigate={setCurrentPage} onBack={() => setCurrentPage('reservations')} onProceed={() => setCurrentPage('payment')} />;
+                return <Checkout activePage="checkout" onNavigate={setCurrentPage} onProceed={() => setCurrentPage('payment')} />;
             case 'payment':
                 return <Payment onBack={() => setCurrentPage('checkout')} onComplete={() => setCurrentPage('dashboard')} />;
             case 'customers':
