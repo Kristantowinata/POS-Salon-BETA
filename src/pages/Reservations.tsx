@@ -1,39 +1,54 @@
 
-import MainLayout from '../components/layout/MainLayout';
+import { useState } from 'react';
 import Button from '../components/ui/Button';
+import LoadingSpinner from '../components/ui/LoadingSpinner';
+import ErrorAlert from '../components/ui/ErrorAlert';
+import { useServices } from '../hooks/useServices';
+import { useStylists } from '../hooks/useStylists';
 
-interface ReservationsProps {
-    activePage?: string;
-    onNavigate?: (page: string) => void;
-}
+export default function Reservations() {
+    const { data: services, isLoading: servicesLoading, isError: servicesError, refetch: refetchServices } = useServices();
+    const { data: stylists, isLoading: stylistsLoading, isError: stylistsError, refetch: refetchStylists } = useStylists();
+    const [showWalkinMobile, setShowWalkinMobile] = useState(false);
 
-export default function Reservations({ activePage = 'reservations', onNavigate }: ReservationsProps) {
+    const isLoading = servicesLoading || stylistsLoading;
+    const isError = servicesError || stylistsError;
+
+    const availableStylists = stylists?.filter(s => s.is_available) ?? [];
     return (
-        <div className="flex bg-background-light dark:bg-background-dark text-slate-800 dark:text-slate-100 font-display min-h-screen overflow-hidden">
-            <MainLayout activePage={activePage} onNavigate={onNavigate}>
-                <div className="flex flex-1 overflow-hidden relative z-10">
-                    {/* Top Header & Main Workspace */}
-                    <div className="flex-1 flex flex-col min-w-0">
-                        {/* Top Header */}
-                        <header className="h-20 bg-white/5 border-b border-white/5 flex items-center justify-between px-8 shrink-0 backdrop-blur-sm">
-                            <div>
-                                <h1 className="text-2xl font-bold text-white">Reservations</h1>
-                                <p className="text-sm text-slate-400">Manage bookings & check-ins</p>
+        <>
+            <div className="flex flex-1 overflow-hidden relative z-10">
+                {/* Top Header & Main Workspace */}
+                <div className="flex-1 flex flex-col min-w-0">
+                    {/* Top Header */}
+                    <header className="h-20 bg-white/5 border-b border-white/5 flex items-center justify-between px-4 md:px-8 shrink-0 backdrop-blur-sm pl-14 md:pl-4">
+                        <div>
+                            <h1 className="text-2xl font-bold text-white">Reservations</h1>
+                            <p className="text-sm text-slate-400">Manage bookings & check-ins</p>
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <div className="hidden md:flex items-center px-3 py-1 bg-green-500/10 border border-green-500/20 rounded-full">
+                                <span className="w-2 h-2 rounded-full bg-green-500 mr-2 animate-pulse"></span>
+                                <span className="text-xs font-medium text-green-500">Salon Open</span>
                             </div>
-                            <div className="flex items-center gap-4">
-                                <div className="hidden md:flex items-center px-3 py-1 bg-green-500/10 border border-green-500/20 rounded-full">
-                                    <span className="w-2 h-2 rounded-full bg-green-500 mr-2 animate-pulse"></span>
-                                    <span className="text-xs font-medium text-green-500">Salon Open</span>
-                                </div>
-                                <button className="relative p-2 text-slate-400 hover:text-primary hover:bg-white/5 rounded-full transition-colors">
-                                    <span className="material-icons-round">notifications</span>
-                                    <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-surface-dark"></span>
-                                </button>
-                            </div>
-                        </header>
+                            <button className="relative p-2 text-slate-400 hover:text-primary hover:bg-white/5 rounded-full transition-colors">
+                                <span className="material-icons-round">notifications</span>
+                                <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-surface-dark"></span>
+                            </button>
+                        </div>
+                    </header>
 
-                        {/* Content Area */}
-                        <main className="flex-1 overflow-y-auto p-6 lg:p-8 custom-scrollbar">
+                    {/* Content Area */}
+                    <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 custom-scrollbar">
+                        {isLoading && <LoadingSpinner message="Loading reservations data..." />}
+                        {isError && !isLoading && (
+                            <ErrorAlert
+                                message="Failed to load reservations data."
+                                onRetry={() => { refetchServices(); refetchStylists(); }}
+                            />
+                        )}
+
+                        {!isLoading && !isError && (<>
                             {/* Search & Filters */}
                             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
                                 {/* Date Tabs */}
@@ -60,7 +75,7 @@ export default function Reservations({ activePage = 'reservations', onNavigate }
                             </div>
 
                             {/* Stats Overview */}
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-8">
                                 {[
                                     { icon: 'event', label: 'Total Bookings', value: '24', color: 'text-primary', bg: 'bg-primary/20' },
                                     { icon: 'check_circle', label: 'Checked In', value: '8', color: 'text-green-500', bg: 'bg-green-500/20' },
@@ -167,22 +182,29 @@ export default function Reservations({ activePage = 'reservations', onNavigate }
                                 </div>
 
                             </div>
-                        </main>
-                    </div>
+                        </>)}
+                    </main>
+                </div>
 
-                    {/* Right Panel: Quick Walk-in Form */}
-                    <aside className="w-96 bg-surface-dark border-l border-white/5 flex-col z-20 shadow-2xl shadow-black/50 hidden xl:flex">
-                        <div className="p-6 border-b border-white/5 bg-gradient-to-r from-primary/10 to-transparent">
-                            <div className="flex items-center gap-3 text-primary mb-2">
+                {/* Mobile FAB for Quick Walk-in */}
+                <button
+                    className="xl:hidden fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-primary text-white shadow-xl shadow-primary/30 flex items-center justify-center hover:bg-violet-600 active:scale-95 transition-all"
+                    onClick={() => setShowWalkinMobile(!showWalkinMobile)}
+                    aria-label="Quick Walk-in"
+                >
+                    <span className="material-icons-round text-2xl">{showWalkinMobile ? 'close' : 'flash_on'}</span>
+                </button>
+
+                {/* Mobile Walk-in Overlay */}
+                {showWalkinMobile && (
+                    <div className="xl:hidden fixed inset-0 z-40 flex items-end justify-center">
+                        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowWalkinMobile(false)} />
+                        <div className="relative bg-surface-dark w-full max-w-md rounded-t-2xl p-6 animate-slide-up shadow-2xl max-h-[85vh] overflow-y-auto">
+                            <div className="flex items-center gap-3 text-primary mb-4">
                                 <span className="material-icons-round">flash_on</span>
-                                <span className="text-xs font-bold uppercase tracking-widest">Fast Action</span>
+                                <h2 className="text-xl font-bold text-white">Quick Walk-in</h2>
                             </div>
-                            <h2 className="text-xl font-bold text-white">Quick Walk-in</h2>
-                            <p className="text-sm text-slate-400 mt-1">Process immediate customers.</p>
-                        </div>
-
-                        <div className="p-6 flex-1 overflow-y-auto">
-                            <form className="space-y-6">
+                            <form className="space-y-5">
                                 <div className="space-y-2">
                                     <label className="text-xs font-semibold uppercase text-slate-500 tracking-wider">Customer Name</label>
                                     <div className="relative">
@@ -199,58 +221,112 @@ export default function Reservations({ activePage = 'reservations', onNavigate }
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-xs font-semibold uppercase text-slate-500 tracking-wider">Service</label>
-                                    <div className="relative">
-                                        <select className="w-full bg-background-dark border border-white/10 text-white rounded-lg pl-4 pr-10 py-3 focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-all appearance-none cursor-pointer">
-                                            <option>Select Service...</option>
-                                            <option>Women's Cut</option>
-                                            <option>Men's Cut</option>
-                                            <option>Coloring</option>
-                                        </select>
-                                        <span className="material-icons-round absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none">expand_more</span>
-                                    </div>
+                                    <select className="w-full bg-background-dark border border-white/10 text-white rounded-lg px-4 py-3 focus:outline-none focus:ring-1 focus:ring-primary/50 transition-all appearance-none">
+                                        <option>Select Service...</option>
+                                        {services?.map(svc => (
+                                            <option key={svc.id} value={svc.id}>{svc.name}</option>
+                                        ))}
+                                    </select>
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-xs font-semibold uppercase text-slate-500 tracking-wider">Preferred Stylist</label>
-                                    <div className="relative">
-                                        <select className="w-full bg-background-dark border border-white/10 text-white rounded-lg pl-4 pr-10 py-3 focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-all appearance-none cursor-pointer">
-                                            <option>Any Stylist</option>
-                                            <option>Dewi</option>
-                                            <option>Bambang</option>
-                                        </select>
-                                        <span className="material-icons-round absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none">expand_more</span>
-                                    </div>
-                                    <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
-                                        <span className="w-2 h-2 bg-green-500 rounded-full"></span> 3 Stylists Available
-                                    </p>
+                                    <select className="w-full bg-background-dark border border-white/10 text-white rounded-lg px-4 py-3 focus:outline-none focus:ring-1 focus:ring-primary/50 transition-all appearance-none">
+                                        <option>Any Stylist</option>
+                                        {stylists?.map(s => (
+                                            <option key={s.id} value={s.id}>{s.name}</option>
+                                        ))}
+                                    </select>
                                 </div>
-
-                                <div className="pt-4">
-                                    <button className="w-full bg-primary hover:bg-violet-600 text-white font-bold py-4 rounded-xl shadow-xl shadow-primary/20 transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2 text-lg">
-                                        <span>Start Order</span>
-                                        <span className="material-icons-round">arrow_forward</span>
-                                    </button>
-                                </div>
+                                <button type="button" className="w-full bg-primary hover:bg-violet-600 text-white font-bold py-4 rounded-xl shadow-xl shadow-primary/20 transition-all flex items-center justify-center gap-2 text-lg">
+                                    <span>Start Order</span>
+                                    <span className="material-icons-round">arrow_forward</span>
+                                </button>
                             </form>
                         </div>
+                    </div>
+                )}
 
-                        {/* Helper image at bottom */}
-                        <div className="mt-auto relative h-48 w-full overflow-hidden">
-                            <div className="absolute inset-0 bg-gradient-to-t from-surface-dark to-transparent z-10"></div>
-                            {/* Placeholder gradient instead of external image to avoid loading issues if link breaks */}
-                            <div className="w-full h-full bg-gradient-to-br from-primary/10 to-purple-900/20"></div>
-                            <div className="absolute bottom-6 left-6 right-6 z-20">
-                                <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
-                                    <span>Queue Load</span>
-                                    <span>Low</span>
-                                </div>
-                                <div className="w-full bg-slate-700 h-1.5 rounded-full overflow-hidden">
-                                    <div className="bg-green-500 h-full w-[30%] rounded-full"></div>
+                {/* Right Panel: Quick Walk-in Form */}
+                <aside className="w-96 bg-surface-dark border-l border-white/5 flex-col z-20 shadow-2xl shadow-black/50 hidden xl:flex">
+                    <div className="p-6 border-b border-white/5 bg-gradient-to-r from-primary/10 to-transparent">
+                        <div className="flex items-center gap-3 text-primary mb-2">
+                            <span className="material-icons-round">flash_on</span>
+                            <span className="text-xs font-bold uppercase tracking-widest">Fast Action</span>
+                        </div>
+                        <h2 className="text-xl font-bold text-white">Quick Walk-in</h2>
+                        <p className="text-sm text-slate-400 mt-1">Process immediate customers.</p>
+                    </div>
+
+                    <div className="p-6 flex-1 overflow-y-auto">
+                        <form className="space-y-6">
+                            <div className="space-y-2">
+                                <label className="text-xs font-semibold uppercase text-slate-500 tracking-wider">Customer Name</label>
+                                <div className="relative">
+                                    <span className="material-icons-round absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-lg">person</span>
+                                    <input className="w-full bg-background-dark border border-white/10 text-white rounded-lg pl-10 pr-4 py-3 focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-all placeholder-slate-600" placeholder="Enter guest name" type="text" />
                                 </div>
                             </div>
+                            <div className="space-y-2">
+                                <label className="text-xs font-semibold uppercase text-slate-500 tracking-wider">Phone Number</label>
+                                <div className="relative">
+                                    <span className="material-icons-round absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-lg">smartphone</span>
+                                    <input className="w-full bg-background-dark border border-white/10 text-white rounded-lg pl-10 pr-4 py-3 focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-all placeholder-slate-600" placeholder="+62 8..." type="tel" />
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-xs font-semibold uppercase text-slate-500 tracking-wider">Service</label>
+                                <div className="relative">
+                                    <select className="w-full bg-background-dark border border-white/10 text-white rounded-lg pl-4 pr-10 py-3 focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-all appearance-none cursor-pointer">
+                                        <option>Select Service...</option>
+                                        {services?.map(svc => (
+                                            <option key={svc.id} value={svc.id}>{svc.name}</option>
+                                        ))}
+                                    </select>
+                                    <span className="material-icons-round absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none">expand_more</span>
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-xs font-semibold uppercase text-slate-500 tracking-wider">Preferred Stylist</label>
+                                <div className="relative">
+                                    <select className="w-full bg-background-dark border border-white/10 text-white rounded-lg pl-4 pr-10 py-3 focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-all appearance-none cursor-pointer">
+                                        <option>Any Stylist</option>
+                                        {stylists?.map(s => (
+                                            <option key={s.id} value={s.id}>{s.name}</option>
+                                        ))}
+                                    </select>
+                                    <span className="material-icons-round absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none">expand_more</span>
+                                </div>
+                                <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                                    <span className="w-2 h-2 bg-green-500 rounded-full"></span> {availableStylists.length} Stylists Available
+                                </p>
+                            </div>
+
+                            <div className="pt-4">
+                                <button className="w-full bg-primary hover:bg-violet-600 text-white font-bold py-4 rounded-xl shadow-xl shadow-primary/20 transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2 text-lg">
+                                    <span>Start Order</span>
+                                    <span className="material-icons-round">arrow_forward</span>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    {/* Helper image at bottom */}
+                    <div className="mt-auto relative h-48 w-full overflow-hidden">
+                        <div className="absolute inset-0 bg-gradient-to-t from-surface-dark to-transparent z-10"></div>
+                        {/* Placeholder gradient instead of external image to avoid loading issues if link breaks */}
+                        <div className="w-full h-full bg-gradient-to-br from-primary/10 to-purple-900/20"></div>
+                        <div className="absolute bottom-6 left-6 right-6 z-20">
+                            <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
+                                <span>Queue Load</span>
+                                <span>Low</span>
+                            </div>
+                            <div className="w-full bg-slate-700 h-1.5 rounded-full overflow-hidden">
+                                <div className="bg-green-500 h-full w-[30%] rounded-full"></div>
+                            </div>
                         </div>
-                    </aside>
-                </div>
-            </MainLayout>
-        </div>
+                    </div>
+                </aside>
+            </div>
+        </>
     );
 }

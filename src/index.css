@@ -10,6 +10,68 @@
 
     --font-display: "Manrope", sans-serif;
     --font-sans: "Manrope", sans-serif;
+
+    --animate-slide-in-right: slide-in-right 0.3s ease-out;
+    --animate-fade-in: fade-in 0.2s ease-out;
+    --animate-slide-in-left: slide-in-left 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    --animate-scale-in: scale-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    --animate-slide-up: slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slide-in-right {
+    from {
+        opacity: 0;
+        transform: translateX(100%);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes fade-in {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes slide-in-left {
+    from {
+        transform: translateX(-100%);
+    }
+
+    to {
+        transform: translateX(0);
+    }
+}
+
+@keyframes scale-in {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes slide-up {
+    from {
+        opacity: 0;
+        transform: translateY(100%);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 @layer base {
@@ -29,8 +91,12 @@
 }
 
 ::-webkit-scrollbar-thumb {
-    background: #332d44;
+    background: #e2e2e2;
     border-radius: 3px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+    background: #332d44;
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -39,4 +105,18 @@
 
 .glass-panel {
     @apply backdrop-blur-md border border-primary/10 bg-[#1F1A2E]/70;
+}
+
+.glass-card {
+    @apply backdrop-blur-xl bg-white/5 border border-white/10 shadow-2xl;
+}
+
+/* Sidebar mobile overlay backdrop */
+.sidebar-backdrop {
+    @apply fixed inset-0 bg-black/60 backdrop-blur-sm z-40 animate-fade-in;
+}
+
+/* Sidebar mobile slide-in */
+.sidebar-mobile {
+    @apply fixed inset-y-0 left-0 z-50 w-64 animate-slide-in-left;
 }

@@ -1,14 +1,7 @@
 
-import MainLayout from '../components/layout/MainLayout';
-
-interface AnalyticsProps {
-    activePage?: string;
-    onNavigate?: (page: string) => void;
-}
-
-export default function Analytics({ activePage = 'analytics', onNavigate }: AnalyticsProps) {
+export default function Analytics() {
     return (
-        <MainLayout activePage={activePage} onNavigate={onNavigate}>
+        <>
             <div className="flex-1 flex flex-col h-full relative overflow-hidden bg-white/5 dark:bg-background-dark">
                 {/* Top Navigation / Header */}
                 <header className="w-full px-8 py-6 flex justify-between items-center bg-white/70 dark:bg-surface-dark/95 backdrop-blur-md border-b border-gray-200 dark:border-white/5 sticky top-0 z-30">
@@ -274,6 +267,6 @@ export default function Analytics({ activePage = 'analytics', onNavigate }: Anal
                     </div>
                 </div>
             </div>
-        </MainLayout>
+        </>
     );
 }

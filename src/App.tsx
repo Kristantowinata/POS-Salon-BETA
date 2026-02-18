@@ -1,5 +1,9 @@
 
-import { useState } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useAuth } from './context/AuthContext';
+import MainLayout from './components/layout/MainLayout';
+import ErrorBoundary from './components/ErrorBoundary';
+import ToastContainer from './components/ui/ToastContainer';
 import Dashboard from './pages/Dashboard';
 import Reservations from './pages/Reservations';
 import Checkout from './pages/Checkout';
@@ -8,37 +12,54 @@ import Customers from './pages/Customers';
 import Inventory from './pages/Inventory';
 import Settings from './pages/Settings';
 import Analytics from './pages/Analytics';
+import Login from './pages/Login';
 
-function App() {
-    const [currentPage, setCurrentPage] = useState('reservations'); // Default to reservations
+function AppRoutes() {
+    const { isLoggedIn, isLoading } = useAuth();
 
-    const renderPage = () => {
-        switch (currentPage) {
-            case 'dashboard':
-                return <Dashboard activePage="dashboard" onNavigate={setCurrentPage} />;
-            case 'reservations':
-                return <Reservations activePage="reservations" onNavigate={setCurrentPage} />;
-            case 'checkout':
-                return <Checkout activePage="checkout" onNavigate={setCurrentPage} onProceed={() => setCurrentPage('payment')} />;
-            case 'payment':
-                return <Payment onBack={() => setCurrentPage('checkout')} onComplete={() => setCurrentPage('dashboard')} />;
-            case 'customers':
-                return <Customers activePage="customers" onNavigate={setCurrentPage} />;
-            case 'inventory':
-                return <Inventory activePage="inventory" onNavigate={setCurrentPage} />;
-            case 'settings':
-                return <Settings activePage="settings" onNavigate={setCurrentPage} />;
-            case 'analytics':
-                return <Analytics activePage="analytics" onNavigate={setCurrentPage} />;
-            default:
-                return <Dashboard activePage="dashboard" onNavigate={setCurrentPage} />;
-        }
-    };
+    // Show loading spinner while restoring session
+    if (isLoading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-background-light dark:bg-background-dark">
+                <div className="flex flex-col items-center gap-4">
+                    <div className="w-10 h-10 border-3 border-primary border-t-transparent rounded-full animate-spin"></div>
+                    <span className="text-slate-400 text-sm font-medium">Loading...</span>
+                </div>
+            </div>
+        );
+    }
+
+    if (!isLoggedIn) {
+        return <Login />;
+    }
 
     return (
-        <>
-            {renderPage()}
-        </>
+        <MainLayout>
+            <Routes>
+                <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/reservations" element={<Reservations />} />
+                <Route path="/checkout" element={<Checkout />} />
+                <Route path="/payment" element={<Payment />} />
+                <Route path="/customers" element={<Customers />} />
+                <Route path="/inventory" element={<Inventory />} />
+                <Route path="/services" element={<Settings defaultTab="Services & Stylists" />} />
+                <Route path="/settings" element={<Settings defaultTab="General" />} />
+                <Route path="/analytics" element={<Analytics />} />
+                <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            </Routes>
+        </MainLayout>
+    );
+}
+
+function App() {
+    return (
+        <BrowserRouter>
+            <ErrorBoundary>
+                <AppRoutes />
+                <ToastContainer />
+            </ErrorBoundary>
+        </BrowserRouter>
     );
 }
 

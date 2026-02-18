@@ -1,12 +1,9 @@
 
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
-interface PaymentProps {
-    onBack?: () => void;
-    onComplete?: () => void;
-}
-
-export default function Payment({ onBack, onComplete }: PaymentProps) {
+export default function Payment() {
+    const navigate = useNavigate();
     const [paymentMethod, setPaymentMethod] = useState('cash'); // cash, card, qris, debit
     const [cashReceived, setCashReceived] = useState('450.000');
 
@@ -27,7 +24,7 @@ export default function Payment({ onBack, onComplete }: PaymentProps) {
             {/* Top Navigation / Header */}
             <header className="w-full bg-white dark:bg-surface-dark border-b border-gray-200 dark:border-white/5 px-6 py-4 flex items-center justify-between sticky top-0 z-50">
                 <div className="flex items-center gap-4">
-                    <button onClick={onBack} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-white/5 transition-colors text-slate-500 dark:text-slate-400">
+                    <button onClick={() => navigate('/checkout')} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-white/5 transition-colors text-slate-500 dark:text-slate-400">
                         <span className="material-icons-round">arrow_back</span>
                     </button>
                     <div>
@@ -255,7 +252,7 @@ export default function Payment({ onBack, onComplete }: PaymentProps) {
                                     </button>
                                 </div>
                                 {/* Primary Button */}
-                                <button onClick={onComplete} className="w-full bg-primary hover:bg-primary/90 text-white font-bold text-lg py-4 rounded-xl shadow-lg shadow-primary/25 hover:shadow-primary/40 active:scale-[0.98] transition-all flex items-center justify-center gap-2 group cursor-pointer">
+                                <button onClick={() => navigate('/dashboard')} className="w-full bg-primary hover:bg-primary/90 text-white font-bold text-lg py-4 rounded-xl shadow-lg shadow-primary/25 hover:shadow-primary/40 active:scale-[0.98] transition-all flex items-center justify-center gap-2 group cursor-pointer">
                                     <span>Process Payment</span>
                                     <span className="material-icons-round group-hover:translate-x-1 transition-transform">arrow_forward</span>
                                 </button>
