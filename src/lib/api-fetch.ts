@@ -13,6 +13,9 @@ import type { ApiErrorResponse } from './types';
 const ENV_URL = import.meta.env.VITE_API_BASE_URL;
 const API_BASE = ENV_URL ? ENV_URL.replace(/\/$/, '') : '/api/v1';
 
+// DEBUG: Check what API URL is being used
+console.log('Configured API_BASE:', API_BASE, 'Original ENV:', ENV_URL);
+
 export class ApiError extends Error {
     readonly errorCode: string;
     readonly status: number;
