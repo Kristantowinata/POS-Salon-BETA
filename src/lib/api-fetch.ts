@@ -9,7 +9,9 @@
 
 import type { ApiErrorResponse } from './types';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+// Sanitize base URL: remove trailing slash if present to avoid double slashes with path
+const ENV_URL = import.meta.env.VITE_API_BASE_URL;
+const API_BASE = ENV_URL ? ENV_URL.replace(/\/$/, '') : '/api/v1';
 
 export class ApiError extends Error {
     readonly errorCode: string;
