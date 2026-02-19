@@ -1,5 +1,5 @@
 import { apiPost, apiGet } from '../lib/api-fetch';
-import type { Payment, PaymentResult, PaymentReceipt } from '../lib/types';
+import type { PaymentResult, PaymentReceipt } from '../lib/types';
 
 export interface ProcessPaymentInput {
     idempotency_key: string;
