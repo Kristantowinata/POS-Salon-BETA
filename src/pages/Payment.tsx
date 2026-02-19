@@ -14,6 +14,7 @@ export default function Payment() {
     const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'qris' | 'debit'>('cash');
     const [cashReceived, setCashReceived] = useState('');
     const [notes, setNotes] = useState('');
+    const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null); // For Direct QRIS
 
     const { data: order, isLoading: isOrderLoading, isError: isOrderError } = useOrder(orderId);
     const payOrderMutation = usePayOrder();
@@ -58,25 +59,31 @@ export default function Payment() {
 
     const handlePayment = async () => {
         try {
-            await payOrderMutation.mutateAsync({
+            const result = await payOrderMutation.mutateAsync({
                 order_id: order.id,
                 idempotency_key: crypto.randomUUID(),
                 method: paymentMethod,
                 amount_paid: paymentMethod === 'cash' ? cashValue : totalAmount,
                 notes: notes,
             });
-            // Navigation handled by hook/onSuccess or manually here if needed
-            // But hook usually handles Midtrans or query invalidation. 
-            // If Midtrans, popup opens. If Cash, we might want to navigate to summary or dashboard.
-            // For now, let's assume hook outcome handles it or user stays on page.
-            // Actually, for cash successful payment, we should navigate back to dashboard or receipt page.
+
+            // Handle Direct QRIS Response
+            if (paymentMethod === 'qris' && result.actions) {
+                // Core API returns 'actions' array. Find 'generate-qr-code'
+                const qrAction = result.actions.find((a: any) => a.name === 'generate-qr-code');
+                if (qrAction) {
+                    setQrCodeUrl(qrAction.url);
+                    return; // Stop here, showing modal
+                }
+            }
+
+            // Normal flow (Snap or Cash)
             if (paymentMethod === 'cash') {
-                navigate('/dashboard'); // or receipt
+                navigate('/dashboard');
             }
         } catch (error: any) {
             console.error('Payment failed:', error);
             alert(`Payment failed: ${error.message || 'Unknown error. Check console.'}`);
-            // Error managed by mutation state usually, or show alert
         }
     };
 
@@ -259,6 +266,38 @@ export default function Payment() {
                     <span className="material-icons-round">keyboard</span>
                 </button>
             </div>
+
+            {/* Direct QRIS Modal */}
+            {qrCodeUrl && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                    <div className="bg-white dark:bg-surface-dark w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden border border-gray-200 dark:border-white/10 flex flex-col items-center p-8 relative">
+                        <button
+                            onClick={() => setQrCodeUrl(null)}
+                            className="absolute top-4 right-4 p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-full transition-colors"
+                        >
+                            <span className="material-icons-round text-slate-500">close</span>
+                        </button>
+
+                        <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Scan QRIS</h3>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mb-6 text-center">Open your e-wallet app (GoPay, OVO, ShopeePay) and scan this code.</p>
+
+                        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-inner mb-6">
+                            <img src={qrCodeUrl} alt="QRIS Code" className="w-48 h-48 object-contain mix-blend-multiply" />
+                        </div>
+
+                        <div className="flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-white mb-6">
+                            <span className="text-primary">{formatRupiah(totalAmount)}</span>
+                        </div>
+
+                        <button
+                            onClick={() => setQrCodeUrl(null)}
+                            className="w-full bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 text-slate-700 dark:text-white font-bold py-3 rounded-xl transition-colors"
+                        >
+                            Done / Close
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

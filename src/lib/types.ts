@@ -299,6 +299,7 @@ export interface ApiErrorResponse {
 
 export interface PaymentResult extends Payment {
     snap_token?: string | null;
+    actions?: Array<{ name: string; method: string; url: string }>;
 }
 
 export interface PaymentReceipt {
