@@ -1,5 +1,5 @@
 import { apiPost, apiGet } from '../lib/api-fetch';
-import type { Payment } from '../lib/types';
+import type { Payment, PaymentResult, PaymentReceipt } from '../lib/types';
 
 export interface ProcessPaymentInput {
     idempotency_key: string;
@@ -9,25 +9,12 @@ export interface ProcessPaymentInput {
     notes?: string;
 }
 
-export interface PaymentReceipt {
-    payment: Payment;
-    order: {
-        order_number: string;
-        subtotal: number;
-        tax_amount: number;
-        discount_amount: number;
-        total: number;
-        items: Array<{ name: string; quantity: number; unit_price: number; subtotal: number }>;
-    };
-    salon: {
-        name: string;
-        currency: string;
-    };
-}
+// Re-export this for convenience if needed, or import from types
+export type { PaymentReceipt };
 
 export const paymentClient = {
     process: (data: ProcessPaymentInput) =>
-        apiPost<Payment>('/payments', data),
+        apiPost<PaymentResult>('/payments', data),
 
     getReceipt: (paymentId: string) =>
         apiGet<PaymentReceipt>(`/payments/${paymentId}/receipt`),

@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import ErrorAlert from '../components/ui/ErrorAlert';
 import { useServices } from '../hooks/useServices';
+import { useCheckout } from '../hooks/useCheckout';
 import { formatRupiah, formatDuration } from '../lib/format';
 import type { Service } from '../lib/types';
 
@@ -29,6 +30,7 @@ export default function Checkout() {
     const [activeTab, setActiveTab] = useState('Services');
     const { data: services, isLoading, isError, refetch } = useServices();
     const [cartOpen, setCartOpen] = useState(false);
+    const checkoutMutation = useCheckout();
 
     // Cart state (local, not persisted)
     const [cart, setCart] = useState<CartItem[]>([]);
@@ -72,6 +74,36 @@ export default function Checkout() {
     const total = subtotal + tax;
 
     const isInCart = (id: string) => cart.some(item => item.id === id);
+
+    const handleCheckout = async () => {
+        if (cart.length === 0) return;
+
+        try {
+            const result = await checkoutMutation.mutateAsync({
+                idempotency_key: crypto.randomUUID(),
+                items: cart.map(item => ({
+                    item_type: item.type === 'service' ? 'service' : 'product',
+                    service_id: item.type === 'service' ? item.id : undefined,
+                    product_id: item.type === 'product' ? item.id : undefined,
+                    name: item.name,
+                    unit_price: item.price,
+                    quantity: item.quantity,
+                    stylist_id: item.stylist,
+                })),
+                discount_type: 'flat',
+                discount_amount: 0,
+                // Default customer or walk-in logic handled by backend if null?
+                // Backend requires customer_id? 
+                // Let's check backend/app/api/v1/checkout/route.ts but for now assume it handles optional customer_id
+                customer_id: undefined,
+            });
+
+            navigate('/payment', { state: { orderId: result.id } });
+        } catch (error) {
+            console.error('Checkout failed:', error);
+            alert('Failed to process checkout. Please try again.');
+        }
+    };
 
     return (
         <>
@@ -270,8 +302,12 @@ export default function Checkout() {
                             </div>
 
                             {/* Checkout Button */}
-                            <button onClick={() => navigate('/payment')} className="w-full bg-primary hover:bg-violet-600 text-white font-bold py-4 px-6 rounded-xl shadow-lg shadow-primary/30 flex items-center justify-between group transition-all transform hover:-translate-y-0.5">
-                                <span>Checkout</span>
+                            <button
+                                onClick={handleCheckout}
+                                disabled={cart.length === 0 || checkoutMutation.isPending}
+                                className={`w-full bg-primary hover:bg-violet-600 text-white font-bold py-4 px-6 rounded-xl shadow-lg shadow-primary/30 flex items-center justify-between group transition-all transform hover:-translate-y-0.5 ${checkoutMutation.isPending ? 'opacity-70 cursor-not-allowed' : ''}`}
+                            >
+                                <span>{checkoutMutation.isPending ? 'Processing...' : 'Checkout'}</span>
                                 <div className="flex items-center gap-2">
                                     <span className="text-white/50 font-normal">|</span>
                                     <span className="text-white/90 group-hover:text-white">{formatRupiah(total)}</span>

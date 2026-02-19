@@ -296,3 +296,23 @@ export interface ApiErrorResponse {
     errorCode: string;
     details?: Record<string, unknown>;
 }
+
+export interface PaymentResult extends Payment {
+    snap_token?: string | null;
+}
+
+export interface PaymentReceipt {
+    payment: Payment;
+    order: {
+        order_number: string;
+        subtotal: number;
+        tax_amount: number;
+        discount_amount: number;
+        total: number;
+        items: Array<{ name: string; quantity: number; unit_price: number; subtotal: number }>;
+    };
+    salon: {
+        name: string;
+        currency: string;
+    };
+}
