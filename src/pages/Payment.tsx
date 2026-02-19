@@ -18,11 +18,21 @@ export default function Payment() {
     const { data: order, isLoading: isOrderLoading, isError: isOrderError } = useOrder(orderId);
     const payOrderMutation = usePayOrder();
 
-    // Helper to parse currency string to number
-    const parseCurrency = (str: string) => parseInt(str.replace(/\./g, '')) || 0;
-
     // Helper to format number to currency string
     const formatCurrency = (num: number) => num.toLocaleString('id-ID');
+
+    // Helper to parse currency string to number (handles dots)
+    const parseCurrency = (str: string) => parseInt(str.replace(/\./g, ''), 10) || 0;
+
+    const handleCashChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const rawValue = e.target.value.replace(/\D/g, ''); // Remove non-digits
+        if (rawValue === '') {
+            setCashReceived('');
+            return;
+        }
+        const numValue = parseInt(rawValue, 10);
+        setCashReceived(formatCurrency(numValue));
+    };
 
     // Initialize cashReceived with total amount when order loads
     useEffect(() => {
@@ -133,7 +143,7 @@ export default function Payment() {
                                                 placeholder="0"
                                                 type="text"
                                                 value={cashReceived}
-                                                onChange={(e) => setCashReceived(e.target.value)}
+                                                onChange={handleCashChange}
                                             />
                                         </div>
                                         <div className="flex gap-2 mt-3 overflow-x-auto pb-2 scrollbar-hide">

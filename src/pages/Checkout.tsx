@@ -5,6 +5,8 @@ import LoadingSpinner from '../components/ui/LoadingSpinner';
 import ErrorAlert from '../components/ui/ErrorAlert';
 import { useServices } from '../hooks/useServices';
 import { useCheckout } from '../hooks/useCheckout';
+import { useStylists } from '../hooks/useStylists'; // Added
+import { useCustomers } from '../hooks/useCustomers'; // Added
 import { formatRupiah, formatDuration } from '../lib/format';
 import type { Service } from '../lib/types';
 
@@ -25,12 +27,126 @@ const CATEGORY_COLORS: Record<string, string> = {
     'Nail & Spa': 'bg-orange-500',
 };
 
+// Simple Customer Search Modal Component (Inline for now)
+function CustomerSearchModal({ onClose, onSelect }: { onClose: () => void, onSelect: (customer: any) => void }) {
+    const [search, setSearch] = useState('');
+    // Fix: Pass object params
+    const { data: customers, isLoading } = useCustomers({ page: 1, search });
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+            <div className="bg-white dark:bg-surface-dark w-full max-w-md rounded-2xl shadow-2xl overflow-hidden border border-gray-200 dark:border-white/10 flex flex-col max-h-[80vh]">
+                <div className="p-4 border-b border-gray-200 dark:border-white/5 flex items-center justify-between">
+                    <h3 className="text-lg font-bold text-slate-800 dark:text-white">Select Customer</h3>
+                    <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-full transition-colors">
+                        <span className="material-icons-round text-slate-500">close</span>
+                    </button>
+                </div>
+                <div className="p-4 border-b border-gray-200 dark:border-white/5">
+                    <div className="relative">
+                        <span className="material-icons-round absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
+                        <input
+                            autoFocus
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            placeholder="Search by name or phone..."
+                            className="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-background-dark border border-gray-200 dark:border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                        />
+                    </div>
+                </div>
+                <div className="flex-1 overflow-y-auto p-2 custom-scrollbar">
+                    {isLoading ? (
+                        <div className="flex justify-center p-4"><LoadingSpinner message="Searching..." /></div>
+                    ) : (
+                        <div className="space-y-1">
+                            <button
+                                onClick={() => onSelect(null)} // Walk-in
+                                className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-white/5 rounded-xl transition-colors text-left group"
+                            >
+                                <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-white/10 flex items-center justify-center text-slate-500">
+                                    <span className="material-icons-round">person_off</span>
+                                </div>
+                                <div>
+                                    <h4 className="font-bold text-slate-800 dark:text-white group-hover:text-primary transition-colors">Walk-in Customer</h4>
+                                    <p className="text-xs text-slate-500">No profile</p>
+                                </div>
+                            </button>
+                            {/* Fix: Map directly over customers array */}
+                            {customers?.map((c: any) => (
+                                <button
+                                    key={c.id}
+                                    onClick={() => onSelect(c)}
+                                    className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-white/5 rounded-xl transition-colors text-left group"
+                                >
+                                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
+                                        {c.name.charAt(0).toUpperCase()}
+                                    </div>
+                                    <div>
+                                        <h4 className="font-bold text-slate-800 dark:text-white group-hover:text-primary transition-colors">{c.name}</h4>
+                                        <p className="text-xs text-slate-500">{c.phone || c.email || 'No contact info'}</p>
+                                    </div>
+                                    {c.loyalty_tier && (
+                                        <span className="ml-auto text-[10px] font-bold uppercase px-2 py-1 bg-primary/10 text-primary rounded border border-primary/20">
+                                            {c.loyalty_tier}
+                                        </span>
+                                    )}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// Stylist Selector Logic
+function StylistSelector({
+    selectedId,
+    onChange,
+    stylists
+}: {
+    selectedId?: string,
+    onChange: (id?: string) => void,
+    stylists: any[]
+}) {
+    // find selected stylist name
+    const selectedStylist = stylists.find(s => s.id === selectedId);
+
+    return (
+        <div className="relative group/stylist">
+            <select
+                value={selectedId || ''}
+                onChange={(e) => onChange(e.target.value || undefined)}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+            >
+                <option value="">Any Stylist</option>
+                {stylists.map(s => (
+                    <option key={s.id} value={s.id}>{s.name} ({s.role})</option>
+                ))}
+            </select>
+            <div className="flex items-center gap-1 text-xs px-2 py-1 rounded bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 group-hover/stylist:border-primary/30 transition-colors">
+                <span className="material-icons-round text-[14px] text-slate-400">content_cut</span>
+                <span className={`font-medium ${selectedStylist ? 'text-primary' : 'text-slate-500 dark:text-slate-400'}`}>
+                    {selectedStylist ? selectedStylist.name.split(' ')[0] : 'Any Stylist'}
+                </span>
+                <span className="material-icons-round text-[14px] text-slate-400 ml-auto">arrow_drop_down</span>
+            </div>
+        </div>
+    );
+}
+
 export default function Checkout() {
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState('Services');
     const { data: services, isLoading, isError, refetch } = useServices();
+    const { data: stylistsList } = useStylists(); // Fetch stylists
     const [cartOpen, setCartOpen] = useState(false);
     const checkoutMutation = useCheckout();
+
+    // Customer State
+    const [selectedCustomer, setSelectedCustomer] = useState<any>(null); // null = walk-in
+    const [isCustomerModalOpen, setCustomerModalOpen] = useState(false);
 
     // Cart state (local, not persisted)
     const [cart, setCart] = useState<CartItem[]>([]);
@@ -53,7 +169,8 @@ export default function Checkout() {
             if (existing) {
                 return prev.map(item => item.id === svc.id ? { ...item, quantity: item.quantity + 1 } : item);
             }
-            return [...prev, { id: svc.id, name: svc.name, type: 'service', price: svc.price, quantity: 1, duration: svc.duration_minutes }];
+            // Default: no specific stylist assigned
+            return [...prev, { id: svc.id, name: svc.name, type: 'service', price: svc.price, quantity: 1, duration: svc.duration_minutes, stylist: undefined }];
         });
     };
 
@@ -67,6 +184,10 @@ export default function Checkout() {
             const newQty = item.quantity + delta;
             return newQty > 0 ? { ...item, quantity: newQty } : item;
         }));
+    };
+
+    const updateItemStylist = (id: string, stylistId?: string) => {
+        setCart(prev => prev.map(item => item.id === id ? { ...item, stylist: stylistId } : item));
     };
 
     const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -95,7 +216,7 @@ export default function Checkout() {
                 // Default customer or walk-in logic handled by backend if null?
                 // Backend requires customer_id? 
                 // Let's check backend/app/api/v1/checkout/route.ts but for now assume it handles optional customer_id
-                customer_id: undefined,
+                customer_id: selectedCustomer?.id,
             });
 
             navigate('/payment', { state: { orderId: result.id } });
@@ -113,28 +234,29 @@ export default function Checkout() {
                 <header className="h-auto md:h-16 flex flex-wrap items-center justify-between px-4 md:px-6 py-3 md:py-0 gap-3 border-b border-gray-200 dark:border-white/5 bg-white/70 dark:bg-surface-dark/95 backdrop-blur-md z-20 shrink-0 pl-14 md:pl-6">
                     <div className="flex items-center gap-6">
                         {/* Customer Info */}
-                        <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 rounded-full bg-gradient-to-br from-primary to-purple-800 flex items-center justify-center text-white font-bold shadow-lg shadow-primary/20">
-                                <span className="material-icons-round text-lg">person</span>
+                        <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setCustomerModalOpen(true)}>
+                            <div className="h-10 w-10 rounded-full bg-gradient-to-br from-primary to-purple-800 flex items-center justify-center text-white font-bold shadow-lg shadow-primary/20 relative">
+                                {selectedCustomer ? (
+                                    <span>{selectedCustomer.name.charAt(0).toUpperCase()}</span>
+                                ) : (
+                                    <span className="material-icons-round text-lg">person</span>
+                                )}
+                                <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-white dark:bg-surface-dark rounded-full flex items-center justify-center shadow-sm">
+                                    <span className="material-icons-round text-primary text-xs">edit</span>
+                                </div>
                             </div>
                             <div>
                                 <h2 className="text-sm text-slate-500 dark:text-slate-400 font-medium">Customer</h2>
-                                <p className="font-bold text-slate-800 dark:text-white text-lg leading-tight">Walk-in</p>
+                                <p className="font-bold text-slate-800 dark:text-white text-lg leading-tight truncate max-w-[150px]">
+                                    {selectedCustomer ? selectedCustomer.name : 'Walk-in'}
+                                </p>
                             </div>
                         </div>
 
                         <div className="h-8 w-px bg-gray-200 dark:bg-white/10 mx-2"></div>
 
                         {/* Stylist Info */}
-                        <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 rounded-full bg-gray-100 dark:bg-white/5 flex items-center justify-center text-primary">
-                                <span className="material-icons-round">content_cut</span>
-                            </div>
-                            <div>
-                                <h2 className="text-sm text-slate-500 dark:text-slate-400 font-medium">Stylist</h2>
-                                <p className="font-semibold text-slate-800 dark:text-white leading-tight">—</p>
-                            </div>
-                        </div>
+                        {/* Stylist Info removed from header - moved to per-item */}
                     </div>
 
                     {/* Timer & Actions */}
@@ -254,7 +376,14 @@ export default function Checkout() {
                                     <div className="flex justify-between items-start mb-2">
                                         <div>
                                             <h4 className="font-bold text-slate-800 dark:text-white text-sm">{item.name}</h4>
-                                            <p className="text-xs text-slate-500 dark:text-slate-400">{item.stylist ?? item.type}</p>
+                                            {/* Stylist Selector for this item */}
+                                            <div className="mt-1">
+                                                <StylistSelector
+                                                    selectedId={item.stylist}
+                                                    onChange={(id) => updateItemStylist(item.id, id)}
+                                                    stylists={stylistsList || []}
+                                                />
+                                            </div>
                                         </div>
                                         <p className="font-bold text-slate-800 dark:text-white">{formatRupiah(item.price * item.quantity)}</p>
                                     </div>
@@ -404,6 +533,17 @@ export default function Checkout() {
                     )}
                 </main>
             </div>
+
+            {/* Customer Search Modal */}
+            {isCustomerModalOpen && (
+                <CustomerSearchModal
+                    onClose={() => setCustomerModalOpen(false)}
+                    onSelect={(c) => {
+                        setSelectedCustomer(c);
+                        setCustomerModalOpen(false);
+                    }}
+                />
+            )}
         </>
     );
 }
