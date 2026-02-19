@@ -390,8 +390,12 @@ export default function Checkout() {
                                         <div className="h-px bg-gray-200 dark:bg-white/10"></div>
                                         <div className="flex justify-between items-end"><span className="text-slate-600 dark:text-slate-300 font-medium">Total</span><span className="text-xl font-bold text-slate-800 dark:text-white">{formatRupiah(total)}</span></div>
                                     </div>
-                                    <button onClick={() => navigate('/payment')} className="w-full bg-primary hover:bg-violet-600 text-white font-bold py-4 rounded-xl shadow-lg shadow-primary/30 flex items-center justify-center gap-2 transition-all">
-                                        <span>Checkout</span>
+                                    <button
+                                        onClick={handleCheckout}
+                                        disabled={cart.length === 0 || checkoutMutation.isPending}
+                                        className={`w-full bg-primary hover:bg-violet-600 text-white font-bold py-4 rounded-xl shadow-lg shadow-primary/30 flex items-center justify-center gap-2 transition-all ${checkoutMutation.isPending ? 'opacity-70 cursor-not-allowed' : ''}`}
+                                    >
+                                        <span>{checkoutMutation.isPending ? 'Processing...' : 'Checkout'}</span>
                                         <span className="material-icons-round">arrow_forward</span>
                                     </button>
                                 </div>
