@@ -73,8 +73,9 @@ export default function Payment() {
             if (paymentMethod === 'cash') {
                 navigate('/dashboard'); // or receipt
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('Payment failed:', error);
+            alert(`Payment failed: ${error.message || 'Unknown error. Check console.'}`);
             // Error managed by mutation state usually, or show alert
         }
     };
