@@ -1,5 +1,5 @@
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Button from '../components/ui/Button';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import ErrorAlert from '../components/ui/ErrorAlert';
@@ -71,17 +71,17 @@ export default function Reservations() {
     const [searchQuery, setSearchQuery] = useState('');
     const [searchDebounced, setSearchDebounced] = useState('');
 
-    // Debounce search
-    const handleSearchChange = useCallback((value: string) => {
-        setSearchQuery(value);
-        const timer = setTimeout(() => setSearchDebounced(value), 400);
+    // Proper debounce with useEffect cleanup
+    useEffect(() => {
+        const timer = setTimeout(() => setSearchDebounced(searchQuery), 400);
         return () => clearTimeout(timer);
-    }, []);
+    }, [searchQuery]);
 
     const dateParam = getDateRange(dateTab);
     const {
         data: reservationsData,
         isLoading: reservationsLoading,
+        isFetching: reservationsFetching,
         isError: reservationsError,
         refetch: refetchReservations,
     } = useReservations({
@@ -459,8 +459,8 @@ export default function Reservations() {
                                             key={tab}
                                             onClick={() => setDateTab(tab)}
                                             className={`px-6 py-2 rounded-lg text-sm font-semibold transition-all ${dateTab === tab
-                                                    ? 'bg-primary text-white shadow-lg shadow-primary/30'
-                                                    : 'text-slate-400 hover:text-white hover:bg-white/5'
+                                                ? 'bg-primary text-white shadow-lg shadow-primary/30'
+                                                : 'text-slate-400 hover:text-white hover:bg-white/5'
                                                 }`}
                                         >
                                             {tab === 'today' ? 'Today' : tab === 'tomorrow' ? 'Tomorrow' : 'This Week'}
@@ -471,12 +471,23 @@ export default function Reservations() {
                                 <div className="relative w-full md:w-96 group">
                                     <span className="material-icons-round absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors">search</span>
                                     <input
-                                        className="w-full bg-surface-dark border border-white/5 text-white text-sm rounded-lg pl-12 pr-4 py-3 focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-all shadow-sm placeholder-slate-500"
-                                        placeholder="Search customer name or phone..."
+                                        className="w-full bg-surface-dark border border-white/5 text-white text-sm rounded-lg pl-12 pr-10 py-3 focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-all shadow-sm placeholder-slate-500"
+                                        placeholder="Search customer name..."
                                         type="text"
                                         value={searchQuery}
-                                        onChange={e => handleSearchChange(e.target.value)}
+                                        onChange={e => setSearchQuery(e.target.value)}
                                     />
+                                    {reservationsFetching && searchQuery && (
+                                        <span className="material-icons-round absolute right-3 top-1/2 -translate-y-1/2 text-primary text-lg animate-spin">progress_activity</span>
+                                    )}
+                                    {searchQuery && !reservationsFetching && (
+                                        <button
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors"
+                                            onClick={() => setSearchQuery('')}
+                                        >
+                                            <span className="material-icons-round text-lg">close</span>
+                                        </button>
+                                    )}
                                 </div>
                             </div>
 
