@@ -1,5 +1,5 @@
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import Button from '../components/ui/Button';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import ErrorAlert from '../components/ui/ErrorAlert';
@@ -69,13 +69,22 @@ export default function Reservations() {
     // ── Filters ──
     const [dateTab, setDateTab] = useState<'today' | 'tomorrow' | 'week'>('today');
     const [searchQuery, setSearchQuery] = useState('');
-    const [searchDebounced, setSearchDebounced] = useState('');
+    const [activeSearch, setActiveSearch] = useState('');
 
-    // Proper debounce with useEffect cleanup
-    useEffect(() => {
-        const timer = setTimeout(() => setSearchDebounced(searchQuery), 400);
-        return () => clearTimeout(timer);
-    }, [searchQuery]);
+    const handleSearchSubmit = () => {
+        setActiveSearch(searchQuery.trim());
+    };
+
+    const handleSearchClear = () => {
+        setSearchQuery('');
+        setActiveSearch('');
+    };
+
+    const handleSearchKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            handleSearchSubmit();
+        }
+    };
 
     const dateParam = getDateRange(dateTab);
     const {
@@ -86,7 +95,7 @@ export default function Reservations() {
         refetch: refetchReservations,
     } = useReservations({
         date: dateParam,
-        search: searchDebounced || undefined,
+        search: activeSearch || undefined,
     });
 
     // The list API returns { items, total, page, limit }
@@ -472,18 +481,19 @@ export default function Reservations() {
                                     <span className="material-icons-round absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors">search</span>
                                     <input
                                         className="w-full bg-surface-dark border border-white/5 text-white text-sm rounded-lg pl-12 pr-10 py-3 focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-all shadow-sm placeholder-slate-500"
-                                        placeholder="Search customer name..."
+                                        placeholder="Search customer name... (Enter)"
                                         type="text"
                                         value={searchQuery}
                                         onChange={e => setSearchQuery(e.target.value)}
+                                        onKeyDown={handleSearchKeyDown}
                                     />
-                                    {reservationsFetching && searchQuery && (
+                                    {reservationsFetching && activeSearch && (
                                         <span className="material-icons-round absolute right-3 top-1/2 -translate-y-1/2 text-primary text-lg animate-spin">progress_activity</span>
                                     )}
                                     {searchQuery && !reservationsFetching && (
                                         <button
                                             className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors"
-                                            onClick={() => setSearchQuery('')}
+                                            onClick={handleSearchClear}
                                         >
                                             <span className="material-icons-round text-lg">close</span>
                                         </button>
