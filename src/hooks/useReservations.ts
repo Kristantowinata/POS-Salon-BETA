@@ -68,3 +68,15 @@ export function useCheckInReservation() {
         },
     });
 }
+
+export function useCancelReservation() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ id, version }: { id: string; version: number }) =>
+            reservationClient.cancel(id, version),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: queryKeys.reservations.all });
+            qc.invalidateQueries({ queryKey: queryKeys.dashboard.all });
+        },
+    });
+}

@@ -1,4 +1,4 @@
-import { apiGet, apiPost, apiPatch, buildQueryString } from '../lib/api-fetch';
+import { apiGet, apiPost, apiPatch } from '../lib/api-fetch';
 import type { Reservation } from '../lib/types';
 
 export interface ReservationListParams {
@@ -6,6 +6,13 @@ export interface ReservationListParams {
     date?: string;
     status?: string;
     search?: string;
+}
+
+export interface ReservationListResponse {
+    items: Reservation[];
+    total: number;
+    page: number;
+    limit: number;
 }
 
 export interface CreateReservationInput {
@@ -37,7 +44,7 @@ export interface UpdateReservationInput {
 
 export const reservationClient = {
     list: (params?: ReservationListParams) =>
-        apiGet<Reservation[]>(`/reservations${buildQueryString(params ?? {})}`),
+        apiGet<ReservationListResponse>(`/reservations${buildQueryString(params ?? {})}`),
 
     getById: (id: string) =>
         apiGet<Reservation>(`/reservations/${id}`),
@@ -45,12 +52,20 @@ export const reservationClient = {
     create: (data: CreateReservationInput) =>
         apiPost<Reservation>('/reservations', data),
 
+    // Walk-in uses the same POST /reservations endpoint;
+    // backend distinguishes by presence of customer_name field.
     createWalkIn: (data: CreateWalkInInput) =>
-        apiPost<Reservation>('/reservations/walk-in', data),
+        apiPost<Reservation>('/reservations', data),
 
     update: (id: string, data: UpdateReservationInput) =>
         apiPatch<Reservation>(`/reservations/${id}`, data),
 
     checkIn: (id: string) =>
         apiPost<Reservation>(`/reservations/${id}/check-in`),
+
+    cancel: (id: string, version: number) =>
+        apiPatch<Reservation>(`/reservations/${id}`, { status: 'cancelled', version }),
 };
+
+// Re-export for convenience
+import { buildQueryString } from '../lib/api-fetch';
