@@ -1,12 +1,13 @@
 
-import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useMemo, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import ErrorAlert from '../components/ui/ErrorAlert';
 import { useServices } from '../hooks/useServices';
 import { useCheckout } from '../hooks/useCheckout';
-import { useStylists } from '../hooks/useStylists'; // Added
-import { useCustomers } from '../hooks/useCustomers'; // Added
+import { useStylists } from '../hooks/useStylists';
+import { useCustomers } from '../hooks/useCustomers';
+import { useReservation } from '../hooks/useReservations';
 import { formatRupiah, formatDuration } from '../lib/format';
 import type { Service } from '../lib/types';
 
@@ -138,18 +139,55 @@ function StylistSelector({
 
 export default function Checkout() {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const reservationId = searchParams.get('reservationId');
+    const isFromReservation = !!reservationId;
+
     const [activeTab, setActiveTab] = useState('Services');
     const { data: services, isLoading, isError, refetch } = useServices();
-    const { data: stylistsList } = useStylists(); // Fetch stylists
+    const { data: stylistsList } = useStylists();
     const [cartOpen, setCartOpen] = useState(false);
     const checkoutMutation = useCheckout();
 
+    // Reservation auto-sync
+    const { data: reservationData, isLoading: reservationLoading } = useReservation(reservationId ?? '');
+    const [synced, setSynced] = useState(false);
+
     // Customer State
-    const [selectedCustomer, setSelectedCustomer] = useState<any>(null); // null = walk-in
+    const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
     const [isCustomerModalOpen, setCustomerModalOpen] = useState(false);
 
     // Cart state (local, not persisted)
     const [cart, setCart] = useState<CartItem[]>([]);
+
+    // Auto-populate cart from reservation when data arrives
+    useEffect(() => {
+        if (reservationData && !synced && services) {
+            // Set customer
+            if (reservationData.customers) {
+                setSelectedCustomer(reservationData.customers);
+            }
+
+            // Populate cart from reservation_services
+            const resServices = reservationData.reservation_services ?? [];
+            const cartItems: CartItem[] = resServices
+                .filter(rs => rs.services)
+                .map(rs => ({
+                    id: rs.services.id,
+                    name: rs.services.name,
+                    type: 'service' as const,
+                    price: rs.services.price,
+                    quantity: 1,
+                    duration: rs.services.duration_minutes,
+                    stylist: reservationData.stylist_id ?? undefined,
+                }));
+
+            if (cartItems.length > 0) {
+                setCart(cartItems);
+            }
+            setSynced(true);
+        }
+    }, [reservationData, synced, services]);
 
     // Group services by category
     const servicesByCategory = useMemo(() => {
@@ -213,10 +251,8 @@ export default function Checkout() {
                 })),
                 discount_type: 'flat',
                 discount_amount: 0,
-                // Default customer or walk-in logic handled by backend if null?
-                // Backend requires customer_id? 
-                // Let's check backend/app/api/v1/checkout/route.ts but for now assume it handles optional customer_id
                 customer_id: selectedCustomer?.id,
+                reservation_id: reservationId ?? undefined,
             });
 
             navigate('/payment', { state: { orderId: result.id } });
@@ -226,24 +262,44 @@ export default function Checkout() {
         }
     };
 
+    // Show loading state while fetching reservation data
+    if (isFromReservation && reservationLoading) {
+        return (
+            <div className="flex-1 flex items-center justify-center bg-background-light dark:bg-background-dark">
+                <LoadingSpinner message="Loading reservation data..." />
+            </div>
+        );
+    }
+
     return (
         <>
             <div className="flex-1 flex flex-col h-full overflow-hidden bg-background-light dark:bg-background-dark font-display text-slate-800 dark:text-slate-100 selection:bg-primary selection:text-white relative">
+
+                {/* Sync Banner */}
+                {isFromReservation && synced && (
+                    <div className="bg-primary/10 border-b border-primary/20 px-4 py-2 flex items-center gap-2 text-sm shrink-0">
+                        <span className="material-icons-round text-primary text-base">sync</span>
+                        <span className="text-primary font-medium">Order synced from reservation</span>
+                        <span className="text-slate-400">— {cart.length} services pre-loaded. You can still add or remove items.</span>
+                    </div>
+                )}
 
                 {/* Top Header / Action Bar */}
                 <header className="h-auto md:h-16 flex flex-wrap items-center justify-between px-4 md:px-6 py-3 md:py-0 gap-3 border-b border-gray-200 dark:border-white/5 bg-white/70 dark:bg-surface-dark/95 backdrop-blur-md z-20 shrink-0 pl-14 md:pl-6">
                     <div className="flex items-center gap-6">
                         {/* Customer Info */}
-                        <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setCustomerModalOpen(true)}>
+                        <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => !isFromReservation && setCustomerModalOpen(true)}>
                             <div className="h-10 w-10 rounded-full bg-gradient-to-br from-primary to-purple-800 flex items-center justify-center text-white font-bold shadow-lg shadow-primary/20 relative">
                                 {selectedCustomer ? (
                                     <span>{selectedCustomer.name.charAt(0).toUpperCase()}</span>
                                 ) : (
                                     <span className="material-icons-round text-lg">person</span>
                                 )}
-                                <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-white dark:bg-surface-dark rounded-full flex items-center justify-center shadow-sm">
-                                    <span className="material-icons-round text-primary text-xs">edit</span>
-                                </div>
+                                {!isFromReservation && (
+                                    <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-white dark:bg-surface-dark rounded-full flex items-center justify-center shadow-sm">
+                                        <span className="material-icons-round text-primary text-xs">edit</span>
+                                    </div>
+                                )}
                             </div>
                             <div>
                                 <h2 className="text-sm text-slate-500 dark:text-slate-400 font-medium">Customer</h2>
@@ -251,6 +307,9 @@ export default function Checkout() {
                                     {selectedCustomer ? selectedCustomer.name : 'Walk-in'}
                                 </p>
                             </div>
+                            {isFromReservation && (
+                                <span className="material-icons-round text-xs text-slate-500 ml-1" title="Locked — from reservation">lock</span>
+                            )}
                         </div>
 
                         <div className="h-8 w-px bg-gray-200 dark:bg-white/10 mx-2"></div>

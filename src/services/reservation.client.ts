@@ -25,11 +25,15 @@ export interface CreateReservationInput {
     notes?: string;
 }
 
+export interface WalkInServiceItem {
+    service_id: string;
+    stylist_id?: string;
+}
+
 export interface CreateWalkInInput {
     customer_name: string;
     customer_phone?: string;
-    stylist_id?: string;
-    service_ids?: string[];
+    service_items: WalkInServiceItem[];
     notes?: string;
 }
 

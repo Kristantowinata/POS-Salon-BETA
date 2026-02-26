@@ -1,5 +1,6 @@
 
 import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Button from '../components/ui/Button';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import ErrorAlert from '../components/ui/ErrorAlert';
@@ -57,11 +58,22 @@ function getInitials(name: string): string {
     return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
 }
 
-const INITIAL_WALKIN = { name: '', phone: '', serviceId: '', stylistId: '' };
+interface ServiceRow {
+    id: number;
+    serviceId: string;
+    stylistId: string;
+}
+
+let rowIdCounter = 1;
+const createEmptyRow = (): ServiceRow => ({ id: rowIdCounter++, serviceId: '', stylistId: '' });
+
+const INITIAL_WALKIN = { name: '', phone: '' };
 
 // ─── Component ───────────────────────────────────────────────────────
 
 export default function Reservations() {
+    const navigate = useNavigate();
+
     // ── Data fetching ──
     const { data: services, isLoading: servicesLoading, isError: servicesError, refetch: refetchServices } = useServices();
     const { data: stylists, isLoading: stylistsLoading, isError: stylistsError, refetch: refetchStylists } = useStylists();
@@ -109,7 +121,16 @@ export default function Reservations() {
 
     // ── Walk-in form state ──
     const [walkinForm, setWalkinForm] = useState(INITIAL_WALKIN);
+    const [serviceRows, setServiceRows] = useState<ServiceRow[]>([createEmptyRow()]);
     const [showWalkinMobile, setShowWalkinMobile] = useState(false);
+
+    const addServiceRow = () => setServiceRows(prev => [...prev, createEmptyRow()]);
+    const removeServiceRow = (id: number) => {
+        setServiceRows(prev => prev.length > 1 ? prev.filter(r => r.id !== id) : prev);
+    };
+    const updateServiceRow = (id: number, field: 'serviceId' | 'stylistId', value: string) => {
+        setServiceRows(prev => prev.map(r => r.id === id ? { ...r, [field]: value } : r));
+    };
 
     // ── Edit modal state ──
     const [editingReservation, setEditingReservation] = useState<Reservation | null>(null);
@@ -142,8 +163,9 @@ export default function Reservations() {
             showToast({ type: 'error', message: 'Customer name is required.' });
             return;
         }
-        if (!walkinForm.serviceId) {
-            showToast({ type: 'error', message: 'Please select a service.' });
+        const validRows = serviceRows.filter(r => r.serviceId);
+        if (validRows.length === 0) {
+            showToast({ type: 'error', message: 'Please select at least one service.' });
             return;
         }
 
@@ -151,13 +173,16 @@ export default function Reservations() {
             {
                 customer_name: walkinForm.name.trim(),
                 customer_phone: walkinForm.phone.trim() || undefined,
-                stylist_id: walkinForm.stylistId || undefined,
-                service_ids: [walkinForm.serviceId],
+                service_items: validRows.map(r => ({
+                    service_id: r.serviceId,
+                    stylist_id: r.stylistId || undefined,
+                })),
             },
             {
                 onSuccess: () => {
                     showToast({ type: 'success', message: `Walk-in for ${walkinForm.name} created!` });
                     setWalkinForm(INITIAL_WALKIN);
+                    setServiceRows([createEmptyRow()]);
                     setShowWalkinMobile(false);
                 },
                 onError: (err) => {
@@ -261,44 +286,71 @@ export default function Reservations() {
                     />
                 </div>
             </div>
-            <div className="space-y-2">
-                <label className="text-xs font-semibold uppercase text-slate-500 tracking-wider">Service</label>
-                <div className="relative">
-                    <select
-                        className="w-full bg-background-dark border border-white/10 text-white rounded-lg pl-4 pr-10 py-3 focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-all appearance-none cursor-pointer"
-                        value={walkinForm.serviceId}
-                        onChange={e => setWalkinForm(f => ({ ...f, serviceId: e.target.value }))}
-                    >
-                        <option value="">Select Service...</option>
-                        {services?.map(svc => (
-                            <option key={svc.id} value={svc.id}>{svc.name}</option>
-                        ))}
-                    </select>
-                    <span className="material-icons-round absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none">expand_more</span>
+
+            {/* ── Dynamic Service Basket ── */}
+            <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold uppercase text-slate-500 tracking-wider">Services</label>
+                    <span className="text-xs text-slate-500">{serviceRows.filter(r => r.serviceId).length} selected</span>
                 </div>
+                {serviceRows.map((row, idx) => (
+                    <div key={row.id} className="bg-background-dark/50 border border-white/5 rounded-xl p-3 space-y-2">
+                        <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold uppercase text-slate-600 tracking-wider">Service {idx + 1}</span>
+                            {serviceRows.length > 1 && (
+                                <button
+                                    type="button"
+                                    onClick={() => removeServiceRow(row.id)}
+                                    className="text-red-400 hover:text-red-300 transition-colors p-0.5 rounded hover:bg-red-500/10"
+                                >
+                                    <span className="material-icons-round text-sm">close</span>
+                                </button>
+                            )}
+                        </div>
+                        <div className="relative">
+                            <select
+                                className="w-full bg-background-dark border border-white/10 text-white rounded-lg pl-4 pr-10 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-all appearance-none cursor-pointer"
+                                value={row.serviceId}
+                                onChange={e => updateServiceRow(row.id, 'serviceId', e.target.value)}
+                            >
+                                <option value="">Select Service...</option>
+                                {services?.map(svc => (
+                                    <option key={svc.id} value={svc.id}>{svc.name} — Rp {svc.price.toLocaleString()}</option>
+                                ))}
+                            </select>
+                            <span className="material-icons-round absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none text-sm">expand_more</span>
+                        </div>
+                        <div className="relative">
+                            <select
+                                className="w-full bg-background-dark border border-white/10 text-white rounded-lg pl-4 pr-10 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-all appearance-none cursor-pointer"
+                                value={row.stylistId}
+                                onChange={e => updateServiceRow(row.id, 'stylistId', e.target.value)}
+                            >
+                                <option value="">Any Stylist</option>
+                                {availableStylists.map(s => (
+                                    <option key={s.id} value={s.id}>{s.name} ({s.role})</option>
+                                ))}
+                            </select>
+                            <span className="material-icons-round absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none text-sm">expand_more</span>
+                        </div>
+                    </div>
+                ))}
+                <button
+                    type="button"
+                    onClick={addServiceRow}
+                    className="w-full border border-dashed border-white/10 hover:border-primary/40 text-slate-400 hover:text-primary rounded-xl py-2.5 flex items-center justify-center gap-1.5 text-sm font-medium transition-all hover:bg-primary/5"
+                >
+                    <span className="material-icons-round text-base">add</span>
+                    Add Service
+                </button>
             </div>
-            <div className="space-y-2">
-                <label className="text-xs font-semibold uppercase text-slate-500 tracking-wider">Preferred Stylist</label>
-                <div className="relative">
-                    <select
-                        className="w-full bg-background-dark border border-white/10 text-white rounded-lg pl-4 pr-10 py-3 focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-all appearance-none cursor-pointer"
-                        value={walkinForm.stylistId}
-                        onChange={e => setWalkinForm(f => ({ ...f, stylistId: e.target.value }))}
-                    >
-                        <option value="">Any Stylist</option>
-                        {stylists?.map(s => (
-                            <option key={s.id} value={s.id}>{s.name}</option>
-                        ))}
-                    </select>
-                    <span className="material-icons-round absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none">expand_more</span>
-                </div>
-                {!isMobile && (
-                    <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
-                        <span className="w-2 h-2 bg-green-500 rounded-full"></span> {availableStylists.length} Stylists Available
-                    </p>
-                )}
-            </div>
-            <div className={isMobile ? '' : 'pt-4'}>
+
+            {!isMobile && (
+                <p className="text-xs text-slate-500 flex items-center gap-1">
+                    <span className="w-2 h-2 bg-green-500 rounded-full"></span> {availableStylists.length} Stylists Available
+                </p>
+            )}
+            <div className={isMobile ? '' : 'pt-2'}>
                 <button
                     type="submit"
                     disabled={walkInMutation.isPending}
@@ -400,9 +452,14 @@ export default function Reservations() {
                         </Button>
                     )}
                     {isCheckedIn && (
-                        <span className="text-xs text-blue-400 flex items-center gap-1 font-medium">
-                            <span className="material-icons-round text-sm">check_circle</span> In Service
-                        </span>
+                        <Button
+                            variant="primary"
+                            size="sm"
+                            icon="shopping_cart_checkout"
+                            onClick={() => navigate(`/checkout?reservationId=${reservation.id}`)}
+                        >
+                            Checkout
+                        </Button>
                     )}
                     <Button
                         variant="ghost"
