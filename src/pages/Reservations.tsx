@@ -487,8 +487,8 @@ export default function Reservations() {
         return (
             <div
                 key={reservation.id}
-                className={`bg-surface-dark rounded-xl p-5 border-y border-r border-white/5 hover:border-r-primary/30 transition-all flex flex-col gap-4 relative group ${isCheckedIn ? 'border-l-4 border-l-blue-500' : 'border-l-4 border-l-primary'
-                    }`}
+                className={`bg-surface-dark rounded-xl p-5 border-y border-r border-white/5 hover:border-r-primary/30 transition-all flex flex-col gap-4 group ${isCheckedIn ? 'border-l-4 border-l-blue-500' : 'border-l-4 border-l-primary'
+                    } ${(isMenuOpen || isSwapOpen) ? 'relative z-30' : 'relative'}`}
             >
                 <div className="flex flex-col md:flex-row md:items-center gap-4">
                     {/* Time */}
@@ -612,8 +612,8 @@ export default function Reservations() {
                                     disabled={isCurrent}
                                     onClick={() => handleQuickSwap(reservation.id, s.id, reservation.version)}
                                     className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${isCurrent
-                                            ? 'bg-primary/20 text-primary border border-primary/30 cursor-default'
-                                            : 'bg-white/5 text-slate-300 hover:bg-primary/10 hover:text-primary border border-white/5'
+                                        ? 'bg-primary/20 text-primary border border-primary/30 cursor-default'
+                                        : 'bg-white/5 text-slate-300 hover:bg-primary/10 hover:text-primary border border-white/5'
                                         }`}
                                 >
                                     <span>{busy > 0 ? '🔴' : '🟢'}</span>
