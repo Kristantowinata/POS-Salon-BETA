@@ -1,5 +1,5 @@
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Button from '../components/ui/Button';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
@@ -156,6 +156,34 @@ export default function Reservations() {
 
     // ── Overflow menu state (three-dot) ──
     const [overflowMenuId, setOverflowMenuId] = useState<string | null>(null);
+
+    // ── Refs for click-outside detection ──
+    const menuRef = useRef<HTMLDivElement>(null);
+    const swapRef = useRef<HTMLDivElement>(null);
+
+    // ── Click-outside handler (replaces fixed overlay) ──
+    useEffect(() => {
+        if (!overflowMenuId && !swapTarget) return;
+        const handler = (e: MouseEvent) => {
+            const target = e.target as Node;
+            if (overflowMenuId && menuRef.current && !menuRef.current.contains(target)) {
+                setOverflowMenuId(null);
+            }
+            if (swapTarget && swapRef.current && !swapRef.current.contains(target)) {
+                setSwapTarget(null);
+            }
+        };
+        // Use setTimeout to avoid closing immediately on the same click that opened it
+        const timer = setTimeout(() => document.addEventListener('mousedown', handler), 0);
+        return () => { clearTimeout(timer); document.removeEventListener('mousedown', handler); };
+    }, [overflowMenuId, swapTarget]);
+
+    // ── Scroll-into-view when swap popover opens ──
+    useEffect(() => {
+        if (swapTarget && swapRef.current) {
+            swapRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+    }, [swapTarget]);
 
     const availableStylists = stylists?.filter(s => s.is_available) ?? [];
 
@@ -576,20 +604,20 @@ export default function Reservations() {
                             </>
                         )}
                         {isCheckedIn && (
-                            <div className="relative">
+                            <div className="relative" ref={isMenuOpen ? menuRef : undefined}>
                                 <Button
                                     variant="ghost"
                                     size="sm"
                                     icon="more_vert"
                                     className="!p-2"
-                                    onClick={() => setOverflowMenuId(isMenuOpen ? null : reservation.id)}
+                                    onClick={(e: React.MouseEvent) => { e.stopPropagation(); setOverflowMenuId(isMenuOpen ? null : reservation.id); setSwapTarget(null); }}
                                 />
                                 {isMenuOpen && (
-                                    <div className="absolute right-0 top-full mt-1 w-48 bg-surface-dark border border-white/10 rounded-lg shadow-2xl py-1 z-30">
-                                        <button className="w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-white/5 flex items-center gap-2" onClick={() => { handleEditOpen(reservation); setOverflowMenuId(null); }}>
+                                    <div className="absolute right-0 top-full mt-1 w-48 bg-surface-dark border border-white/10 rounded-lg shadow-2xl py-1 z-[60]">
+                                        <button className="w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-white/5 flex items-center gap-2" onClick={(e) => { e.stopPropagation(); handleEditOpen(reservation); setOverflowMenuId(null); }}>
                                             <span className="material-icons-round text-base">edit</span> Edit Reservation
                                         </button>
-                                        <button className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-red-500/10 flex items-center gap-2" onClick={() => { setVoidingId(reservation.id); setOverflowMenuId(null); }}>
+                                        <button className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-red-500/10 flex items-center gap-2" onClick={(e) => { e.stopPropagation(); setVoidingId(reservation.id); setOverflowMenuId(null); }}>
                                             <span className="material-icons-round text-base">cancel</span> Void Transaction
                                         </button>
                                     </div>
@@ -601,7 +629,7 @@ export default function Reservations() {
 
                 {/* Quick-Swap Stylist Popover */}
                 {isSwapOpen && (
-                    <div className="bg-background-dark border border-white/10 rounded-xl p-3 flex flex-wrap gap-2 animate-scale-in">
+                    <div ref={swapRef} className="bg-background-dark border border-white/10 rounded-xl p-3 flex flex-wrap gap-2 animate-scale-in">
                         <span className="text-xs text-slate-500 w-full mb-1">Quick-swap stylist:</span>
                         {availableStylists.map(s => {
                             const busy = stylistBusyCount[s.id] || 0;
@@ -610,7 +638,7 @@ export default function Reservations() {
                                 <button
                                     key={s.id}
                                     disabled={isCurrent}
-                                    onClick={() => handleQuickSwap(reservation.id, s.id, reservation.version)}
+                                    onClick={(e) => { e.stopPropagation(); handleQuickSwap(reservation.id, s.id, reservation.version); }}
                                     className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${isCurrent
                                         ? 'bg-primary/20 text-primary border border-primary/30 cursor-default'
                                         : 'bg-white/5 text-slate-300 hover:bg-primary/10 hover:text-primary border border-white/5'
@@ -941,10 +969,7 @@ export default function Reservations() {
                 </div>
             )}
 
-            {/* Click-away for overflow menu & swap popover */}
-            {(overflowMenuId || swapTarget) && (
-                <div className="fixed inset-0 z-20" onClick={() => { setOverflowMenuId(null); setSwapTarget(null); }} />
-            )}
+
         </>
     );
 }
