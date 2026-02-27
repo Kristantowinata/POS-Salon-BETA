@@ -136,10 +136,39 @@ export default function Reservations() {
     const [editingReservation, setEditingReservation] = useState<Reservation | null>(null);
     const [editForm, setEditForm] = useState({ stylistId: '', notes: '' });
 
-    // ── Cancel confirm state ──
+    // ── Cancel / Void confirm state ──
     const [cancellingId, setCancellingId] = useState<string | null>(null);
+    const [voidingId, setVoidingId] = useState<string | null>(null);
+    const [voidReason, setVoidReason] = useState('');
+
+    // ── Card expand state (for service truncation accordion) ──
+    const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+    const toggleCardExpand = (id: string) => {
+        setExpandedCards(prev => {
+            const next = new Set(prev);
+            next.has(id) ? next.delete(id) : next.add(id);
+            return next;
+        });
+    };
+
+    // ── Quick-swap stylist popover state ──
+    const [swapTarget, setSwapTarget] = useState<{ reservationId: string; version: number } | null>(null);
+
+    // ── Overflow menu state (three-dot) ──
+    const [overflowMenuId, setOverflowMenuId] = useState<string | null>(null);
 
     const availableStylists = stylists?.filter(s => s.is_available) ?? [];
+
+    // ── Stylist busy count (computed from checked_in reservations) ──
+    const stylistBusyCount = useMemo(() => {
+        const counts: Record<string, number> = {};
+        reservations.forEach(r => {
+            if (r.status === 'checked_in' && r.stylist_id) {
+                counts[r.stylist_id] = (counts[r.stylist_id] || 0) + 1;
+            }
+        });
+        return counts;
+    }, [reservations]);
 
     const isLoading = servicesLoading || stylistsLoading || reservationsLoading;
     const isError = servicesError || stylistsError || reservationsError;
@@ -252,6 +281,53 @@ export default function Reservations() {
         );
     };
 
+    // ── Void (post check-in cancel) handler ──
+    const handleVoidConfirm = () => {
+        const res = reservations.find(r => r.id === voidingId);
+        if (!voidingId || !res) return;
+        const auditNote = `VOID: ${voidReason || 'No reason given'} | ${new Date().toLocaleString()}`;
+        updateMutation.mutate(
+            {
+                id: voidingId,
+                data: {
+                    status: 'cancelled',
+                    notes: auditNote,
+                    version: res.version,
+                },
+            },
+            {
+                onSuccess: () => {
+                    showToast({ type: 'success', message: 'Transaction voided.' });
+                    setVoidingId(null);
+                    setVoidReason('');
+                    setOverflowMenuId(null);
+                },
+                onError: (err) => {
+                    showToast({ type: 'error', message: err instanceof Error ? err.message : 'Void failed.' });
+                },
+            },
+        );
+    };
+
+    // ── Quick-swap stylist handler ──
+    const handleQuickSwap = (reservationId: string, newStylistId: string, version: number) => {
+        updateMutation.mutate(
+            {
+                id: reservationId,
+                data: { stylist_id: newStylistId, version },
+            },
+            {
+                onSuccess: () => {
+                    showToast({ type: 'success', message: 'Stylist changed!' });
+                    setSwapTarget(null);
+                },
+                onError: (err) => {
+                    showToast({ type: 'error', message: err instanceof Error ? err.message : 'Swap failed.' });
+                },
+            },
+        );
+    };
+
     // Filter out cancelled/completed for the "upcoming" view
     const visibleReservations = reservations.filter(
         r => r.status !== 'cancelled' && r.status !== 'completed' && r.status !== 'no_show',
@@ -293,56 +369,70 @@ export default function Reservations() {
                     <label className="text-xs font-semibold uppercase text-slate-500 tracking-wider">Services</label>
                     <span className="text-xs text-slate-500">{serviceRows.filter(r => r.serviceId).length} selected</span>
                 </div>
-                {serviceRows.map((row, idx) => (
-                    <div key={row.id} className="bg-background-dark/50 border border-white/5 rounded-xl p-3 space-y-2">
-                        <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-bold uppercase text-slate-600 tracking-wider">Service {idx + 1}</span>
-                            {serviceRows.length > 1 && (
-                                <button
-                                    type="button"
-                                    onClick={() => removeServiceRow(row.id)}
-                                    className="text-red-400 hover:text-red-300 transition-colors p-0.5 rounded hover:bg-red-500/10"
+                <div className={isMobile ? 'max-h-[40vh] overflow-y-auto space-y-2 pr-1 custom-scrollbar' : 'space-y-2'}>
+                    {serviceRows.map((row, idx) => (
+                        <div key={row.id} className="bg-background-dark/50 border border-white/5 rounded-xl p-3 space-y-2">
+                            <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-bold uppercase text-slate-600 tracking-wider">Service {idx + 1}</span>
+                                {serviceRows.length > 1 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => removeServiceRow(row.id)}
+                                        className="text-red-400 hover:text-red-300 transition-colors p-0.5 rounded hover:bg-red-500/10"
+                                    >
+                                        <span className="material-icons-round text-sm">close</span>
+                                    </button>
+                                )}
+                            </div>
+                            <div className="relative">
+                                <select
+                                    className="w-full bg-background-dark border border-white/10 text-white rounded-lg pl-4 pr-10 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-all appearance-none cursor-pointer"
+                                    value={row.serviceId}
+                                    onChange={e => updateServiceRow(row.id, 'serviceId', e.target.value)}
                                 >
-                                    <span className="material-icons-round text-sm">close</span>
-                                </button>
-                            )}
+                                    <option value="">Select Service...</option>
+                                    {services?.map(svc => (
+                                        <option key={svc.id} value={svc.id}>{svc.name} — Rp {svc.price.toLocaleString()}</option>
+                                    ))}
+                                </select>
+                                <span className="material-icons-round absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none text-sm">expand_more</span>
+                            </div>
+                            <div className="relative">
+                                <select
+                                    className="w-full bg-background-dark border border-white/10 text-white rounded-lg pl-4 pr-10 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-all appearance-none cursor-pointer"
+                                    value={row.stylistId}
+                                    onChange={e => {
+                                        const selectedId = e.target.value;
+                                        if (selectedId && stylistBusyCount[selectedId]) {
+                                            const count = stylistBusyCount[selectedId];
+                                            if (!confirm(`Stylist ini sedang melayani ${count} pelanggan lain. Tetap lanjutkan?`)) return;
+                                        }
+                                        updateServiceRow(row.id, 'stylistId', selectedId);
+                                    }}
+                                >
+                                    <option value="">Any Stylist</option>
+                                    {availableStylists.map(s => {
+                                        const busy = stylistBusyCount[s.id] || 0;
+                                        return (
+                                            <option key={s.id} value={s.id}>
+                                                {busy > 0 ? '🔴' : '🟢'} {s.name} ({s.role}){busy > 0 ? ` — Serving ${busy}` : ''}
+                                            </option>
+                                        );
+                                    })}
+                                </select>
+                                <span className="material-icons-round absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none text-sm">expand_more</span>
+                            </div>
                         </div>
-                        <div className="relative">
-                            <select
-                                className="w-full bg-background-dark border border-white/10 text-white rounded-lg pl-4 pr-10 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-all appearance-none cursor-pointer"
-                                value={row.serviceId}
-                                onChange={e => updateServiceRow(row.id, 'serviceId', e.target.value)}
-                            >
-                                <option value="">Select Service...</option>
-                                {services?.map(svc => (
-                                    <option key={svc.id} value={svc.id}>{svc.name} — Rp {svc.price.toLocaleString()}</option>
-                                ))}
-                            </select>
-                            <span className="material-icons-round absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none text-sm">expand_more</span>
-                        </div>
-                        <div className="relative">
-                            <select
-                                className="w-full bg-background-dark border border-white/10 text-white rounded-lg pl-4 pr-10 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-all appearance-none cursor-pointer"
-                                value={row.stylistId}
-                                onChange={e => updateServiceRow(row.id, 'stylistId', e.target.value)}
-                            >
-                                <option value="">Any Stylist</option>
-                                {availableStylists.map(s => (
-                                    <option key={s.id} value={s.id}>{s.name} ({s.role})</option>
-                                ))}
-                            </select>
-                            <span className="material-icons-round absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none text-sm">expand_more</span>
-                        </div>
-                    </div>
-                ))}
-                <button
-                    type="button"
-                    onClick={addServiceRow}
-                    className="w-full border border-dashed border-white/10 hover:border-primary/40 text-slate-400 hover:text-primary rounded-xl py-2.5 flex items-center justify-center gap-1.5 text-sm font-medium transition-all hover:bg-primary/5"
-                >
-                    <span className="material-icons-round text-base">add</span>
-                    Add Service
-                </button>
+                    ))}
+                    <button
+                        type="button"
+                        onClick={addServiceRow}
+                        className="w-full border border-dashed border-white/10 hover:border-primary/40 text-slate-400 hover:text-primary rounded-xl py-2.5 flex items-center justify-center gap-1.5 text-sm font-medium transition-all hover:bg-primary/5"
+                    >
+                        <span className="material-icons-round text-base">add</span>
+                        Add Service
+                    </button>
+                </div>
             </div>
 
             {!isMobile && (
@@ -376,108 +466,176 @@ export default function Reservations() {
     const renderAppointmentCard = (reservation: Reservation) => {
         const { time, period } = formatTime(reservation.scheduled_at);
         const badge = getStatusBadge(reservation.status);
-        const customerName = reservation.customers?.name ?? 'Unknown';
+        const customerName = (reservation as any).guest_name ?? reservation.customers?.name ?? 'Guest';
         const avatarUrl = reservation.customers?.avatar_url;
         const stylistName = reservation.stylists?.name;
-        const serviceNames = reservation.reservation_services
+        const allServices = reservation.reservation_services
             ?.map(rs => rs.services?.name)
-            .filter(Boolean)
-            .join(' + ') || (reservation.type === 'walk_in' ? 'Walk-in' : 'Service');
+            .filter(Boolean) as string[] ?? [];
+        const isExpanded = expandedCards.has(reservation.id);
         const isCheckedIn = reservation.status === 'checked_in';
         const canCheckIn = reservation.status === 'pending' || reservation.status === 'confirmed';
+        const isSwapOpen = swapTarget?.reservationId === reservation.id;
+        const isMenuOpen = overflowMenuId === reservation.id;
+
+        // Truncated service display (max 2)
+        const truncatedServices = allServices.length > 2 && !isExpanded
+            ? allServices.slice(0, 2).join(', ')
+            : allServices.join(', ');
+        const overflowCount = allServices.length - 2;
 
         return (
             <div
                 key={reservation.id}
-                className={`bg-surface-dark rounded-xl p-5 border-y border-r border-white/5 hover:border-r-primary/30 transition-all flex flex-col md:flex-row md:items-center gap-6 relative group ${isCheckedIn ? 'border-l-4 border-l-blue-500' : 'border-l-4 border-l-primary'
+                className={`bg-surface-dark rounded-xl p-5 border-y border-r border-white/5 hover:border-r-primary/30 transition-all flex flex-col gap-4 relative group ${isCheckedIn ? 'border-l-4 border-l-blue-500' : 'border-l-4 border-l-primary'
                     }`}
             >
-                {/* Time */}
-                <div className="flex flex-col items-center justify-center min-w-[80px] border-b md:border-b-0 md:border-r border-white/10 pb-4 md:pb-0 md:pr-6">
-                    <span className={`text-2xl font-bold ${isCheckedIn ? 'text-blue-400' : 'text-primary'}`}>{time}</span>
-                    <span className="text-xs text-slate-500 uppercase font-semibold">{period}</span>
-                </div>
+                <div className="flex flex-col md:flex-row md:items-center gap-4">
+                    {/* Time */}
+                    <div className="flex flex-col items-center justify-center min-w-[80px] border-b md:border-b-0 md:border-r border-white/10 pb-4 md:pb-0 md:pr-6">
+                        <span className={`text-2xl font-bold ${isCheckedIn ? 'text-blue-400' : 'text-primary'}`}>{time}</span>
+                        <span className="text-xs text-slate-500 uppercase font-semibold">{period}</span>
+                    </div>
 
-                {/* Customer info */}
-                <div className="flex-1 flex items-start gap-4">
-                    {avatarUrl ? (
-                        <img className="w-12 h-12 rounded-full object-cover border-2 border-surface-dark shadow-sm" src={avatarUrl} alt={customerName} />
-                    ) : (
-                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-violet-400 to-violet-600 flex items-center justify-center text-white font-bold text-lg shadow-sm">
-                            {getInitials(customerName)}
+                    {/* Customer info */}
+                    <div className="flex-1 flex items-start gap-4">
+                        {avatarUrl ? (
+                            <img className="w-12 h-12 rounded-full object-cover border-2 border-surface-dark shadow-sm" src={avatarUrl} alt={customerName} />
+                        ) : (
+                            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-violet-400 to-violet-600 flex items-center justify-center text-white font-bold text-lg shadow-sm">
+                                {getInitials(customerName)}
+                            </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                            <h3 className="text-lg font-bold text-white">{customerName}</h3>
+                            <div className="flex flex-wrap items-center gap-2 mt-1">
+                                <span className="text-sm text-slate-400 flex items-center gap-1 cursor-pointer" onClick={() => allServices.length > 2 && toggleCardExpand(reservation.id)}>
+                                    <span className="material-icons-round text-base">content_cut</span>
+                                    <span className="truncate">{truncatedServices || (reservation.type === 'walk_in' ? 'Walk-in' : 'Service')}</span>
+                                    {overflowCount > 0 && !isExpanded && (
+                                        <span className="ml-1 text-xs px-1.5 py-0.5 bg-primary/10 text-primary rounded-full font-medium whitespace-nowrap">+{overflowCount} more</span>
+                                    )}
+                                </span>
+                                {stylistName && (
+                                    <>
+                                        <span className="w-1 h-1 rounded-full bg-slate-600"></span>
+                                        <span
+                                            className="text-sm text-slate-400 flex items-center gap-1 cursor-pointer hover:text-primary transition-colors relative"
+                                            onClick={(e) => { e.stopPropagation(); setSwapTarget(isSwapOpen ? null : { reservationId: reservation.id, version: reservation.version }); }}
+                                        >
+                                            <span className="material-icons-round text-base">face</span>
+                                            <span className="text-primary font-medium underline decoration-dotted underline-offset-2">{stylistName}</span>
+                                            <span className="material-icons-round text-xs text-slate-600">swap_horiz</span>
+                                        </span>
+                                    </>
+                                )}
+                                {reservation.type === 'walk_in' && (
+                                    <>
+                                        <span className="w-1 h-1 rounded-full bg-slate-600"></span>
+                                        <span className="text-xs px-2 py-0.5 bg-pink-500/10 text-pink-400 rounded-full border border-pink-500/20 font-medium">Walk-in</span>
+                                    </>
+                                )}
+                            </div>
                         </div>
-                    )}
-                    <div>
-                        <h3 className="text-lg font-bold text-white">{customerName}</h3>
-                        <div className="flex flex-wrap items-center gap-2 mt-1">
-                            <span className="text-sm text-slate-400 flex items-center gap-1">
-                                <span className="material-icons-round text-base">content_cut</span> {serviceNames}
-                            </span>
-                            {stylistName && (
-                                <>
-                                    <span className="w-1 h-1 rounded-full bg-slate-600"></span>
-                                    <span className="text-sm text-slate-400 flex items-center gap-1">
-                                        <span className="material-icons-round text-base">face</span> Stylist: <span className="text-primary font-medium">{stylistName}</span>
-                                    </span>
-                                </>
-                            )}
-                            {reservation.type === 'walk_in' && (
-                                <>
-                                    <span className="w-1 h-1 rounded-full bg-slate-600"></span>
-                                    <span className="text-xs px-2 py-0.5 bg-pink-500/10 text-pink-400 rounded-full border border-pink-500/20 font-medium">Walk-in</span>
-                                </>
-                            )}
-                        </div>
+                    </div>
+
+                    {/* Status badge */}
+                    <div className="absolute top-4 right-12 md:static md:top-auto md:right-auto">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${badge.cls}`}>
+                            {badge.label}
+                        </span>
+                    </div>
+
+                    {/* Action buttons */}
+                    <div className="flex items-center gap-2 mt-0 w-full md:w-auto">
+                        {canCheckIn && (
+                            <Button
+                                variant="success"
+                                size="sm"
+                                icon="check_circle"
+                                onClick={() => handleCheckIn(reservation)}
+                                disabled={checkInMutation.isPending}
+                            >
+                                Check-in
+                            </Button>
+                        )}
+                        {isCheckedIn && (
+                            <Button
+                                variant="primary"
+                                size="sm"
+                                icon="shopping_cart_checkout"
+                                onClick={() => navigate(`/checkout?reservationId=${reservation.id}`)}
+                            >
+                                Checkout
+                            </Button>
+                        )}
+                        {!isCheckedIn && (
+                            <>
+                                <Button variant="ghost" size="sm" icon="edit" className="!p-2" onClick={() => handleEditOpen(reservation)} />
+                                <Button variant="ghost" size="sm" icon="block" className="!p-2 hover:text-red-400" onClick={() => setCancellingId(reservation.id)} />
+                            </>
+                        )}
+                        {isCheckedIn && (
+                            <div className="relative">
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    icon="more_vert"
+                                    className="!p-2"
+                                    onClick={() => setOverflowMenuId(isMenuOpen ? null : reservation.id)}
+                                />
+                                {isMenuOpen && (
+                                    <div className="absolute right-0 top-full mt-1 w-48 bg-surface-dark border border-white/10 rounded-lg shadow-2xl py-1 z-30">
+                                        <button className="w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-white/5 flex items-center gap-2" onClick={() => { handleEditOpen(reservation); setOverflowMenuId(null); }}>
+                                            <span className="material-icons-round text-base">edit</span> Edit Reservation
+                                        </button>
+                                        <button className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-red-500/10 flex items-center gap-2" onClick={() => { setVoidingId(reservation.id); setOverflowMenuId(null); }}>
+                                            <span className="material-icons-round text-base">cancel</span> Void Transaction
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
 
-                {/* Status badge */}
-                <div className="absolute top-4 right-4 md:static md:top-auto md:right-auto">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${badge.cls}`}>
-                        {badge.label}
-                    </span>
-                </div>
+                {/* Quick-Swap Stylist Popover */}
+                {isSwapOpen && (
+                    <div className="bg-background-dark border border-white/10 rounded-xl p-3 flex flex-wrap gap-2 animate-scale-in">
+                        <span className="text-xs text-slate-500 w-full mb-1">Quick-swap stylist:</span>
+                        {availableStylists.map(s => {
+                            const busy = stylistBusyCount[s.id] || 0;
+                            const isCurrent = reservation.stylist_id === s.id;
+                            return (
+                                <button
+                                    key={s.id}
+                                    disabled={isCurrent}
+                                    onClick={() => handleQuickSwap(reservation.id, s.id, reservation.version)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 ${isCurrent
+                                            ? 'bg-primary/20 text-primary border border-primary/30 cursor-default'
+                                            : 'bg-white/5 text-slate-300 hover:bg-primary/10 hover:text-primary border border-white/5'
+                                        }`}
+                                >
+                                    <span>{busy > 0 ? '🔴' : '🟢'}</span>
+                                    {s.name}
+                                    {isCurrent && <span className="text-[10px]">(current)</span>}
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
 
-                {/* Action buttons */}
-                <div className="flex items-center gap-2 mt-2 md:mt-0 w-full md:w-auto">
-                    {canCheckIn && (
-                        <Button
-                            variant="success"
-                            size="sm"
-                            icon="check_circle"
-                            onClick={() => handleCheckIn(reservation)}
-                            disabled={checkInMutation.isPending}
-                        >
-                            Check-in
-                        </Button>
-                    )}
-                    {isCheckedIn && (
-                        <Button
-                            variant="primary"
-                            size="sm"
-                            icon="shopping_cart_checkout"
-                            onClick={() => navigate(`/checkout?reservationId=${reservation.id}`)}
-                        >
-                            Checkout
-                        </Button>
-                    )}
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        icon="edit"
-                        className="!p-2"
-                        onClick={() => handleEditOpen(reservation)}
-                    />
-                    {!isCheckedIn && (
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            icon="block"
-                            className="!p-2 hover:text-red-400"
-                            onClick={() => setCancellingId(reservation.id)}
-                        />
-                    )}
-                </div>
+                {/* Expanded Services Accordion */}
+                {isExpanded && allServices.length > 2 && (
+                    <div className="bg-background-dark/50 border border-white/5 rounded-lg p-3 animate-scale-in">
+                        <span className="text-xs text-slate-500 block mb-2">All services:</span>
+                        <div className="flex flex-wrap gap-2">
+                            {allServices.map((name, i) => (
+                                <span key={i} className="text-xs px-2 py-1 bg-primary/10 text-primary rounded-md font-medium">{name}</span>
+                            ))}
+                        </div>
+                    </div>
+                )}
             </div>
         );
     };
@@ -609,12 +767,14 @@ export default function Reservations() {
                 {showWalkinMobile && (
                     <div className="xl:hidden fixed inset-0 z-40 flex items-end justify-center">
                         <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowWalkinMobile(false)} />
-                        <div className="relative bg-surface-dark w-full max-w-md rounded-t-2xl p-6 animate-slide-up shadow-2xl max-h-[85vh] overflow-y-auto">
-                            <div className="flex items-center gap-3 text-primary mb-4">
+                        <div className="relative bg-surface-dark w-full max-w-md rounded-t-2xl animate-slide-up shadow-2xl max-h-[85vh] flex flex-col">
+                            <div className="flex items-center gap-3 text-primary p-6 pb-3 shrink-0">
                                 <span className="material-icons-round">flash_on</span>
                                 <h2 className="text-xl font-bold text-white">Quick Walk-in</h2>
                             </div>
-                            {renderWalkInForm(true)}
+                            <div className="flex-1 overflow-y-auto px-6 pb-4 custom-scrollbar">
+                                {renderWalkInForm(true)}
+                            </div>
                         </div>
                     </div>
                 )}
@@ -743,6 +903,47 @@ export default function Reservations() {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* ─── Void Transaction Modal ─── */}
+            {voidingId && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center">
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => { setVoidingId(null); setVoidReason(''); }} />
+                    <div className="relative bg-surface-dark rounded-2xl p-6 w-full max-w-sm shadow-2xl border border-white/10 animate-scale-in">
+                        <div className="flex flex-col items-center text-center">
+                            <div className="w-14 h-14 rounded-full bg-red-500/10 flex items-center justify-center mb-4">
+                                <span className="material-icons-round text-3xl text-red-400">remove_shopping_cart</span>
+                            </div>
+                            <h3 className="text-lg font-bold text-white mb-2">Void Transaction?</h3>
+                            <p className="text-sm text-slate-400 mb-4">This customer has been checked in. Voiding will cancel the service and record it in the audit trail.</p>
+                            <textarea
+                                className="w-full bg-background-dark border border-white/10 text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-red-500/50 transition-all placeholder-slate-600 resize-none mb-4"
+                                rows={2}
+                                placeholder="Reason for voiding (optional)..."
+                                value={voidReason}
+                                onChange={e => setVoidReason(e.target.value)}
+                            />
+                            <div className="flex gap-3 w-full">
+                                <Button variant="ghost" className="flex-1" onClick={() => { setVoidingId(null); setVoidReason(''); }}>
+                                    Keep It
+                                </Button>
+                                <Button
+                                    variant="danger"
+                                    className="flex-1"
+                                    onClick={handleVoidConfirm}
+                                    disabled={updateMutation.isPending}
+                                >
+                                    {updateMutation.isPending ? 'Voiding...' : 'Void Transaction'}
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Click-away for overflow menu & swap popover */}
+            {(overflowMenuId || swapTarget) && (
+                <div className="fixed inset-0 z-20" onClick={() => { setOverflowMenuId(null); setSwapTarget(null); }} />
             )}
         </>
     );
