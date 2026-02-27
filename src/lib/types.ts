@@ -149,7 +149,7 @@ export interface Reservation {
     updated_at: string;
     customers?: Customer;
     stylists?: Stylist;
-    reservation_services?: Array<{ service_id: string; services: Service }>;
+    reservation_services?: Array<{ service_id: string; stylist_id?: string | null; services: Service; stylists?: { name: string } | null }>;
 }
 
 // ─── Orders ──────────────────────────────────────────────────────────

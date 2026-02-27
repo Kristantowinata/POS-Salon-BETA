@@ -657,9 +657,17 @@ export default function Reservations() {
                 {isExpanded && allServices.length > 2 && (
                     <div className="bg-background-dark/50 border border-white/5 rounded-lg p-3 animate-scale-in">
                         <span className="text-xs text-slate-500 block mb-2">All services:</span>
-                        <div className="flex flex-wrap gap-2">
-                            {allServices.map((name, i) => (
-                                <span key={i} className="text-xs px-2 py-1 bg-primary/10 text-primary rounded-md font-medium">{name}</span>
+                        <div className="space-y-1.5">
+                            {reservation.reservation_services?.filter(rs => rs.services).map((rs, i) => (
+                                <div key={i} className="flex items-center justify-between text-xs">
+                                    <span className="px-2 py-1 bg-primary/10 text-primary rounded-md font-medium">{rs.services.name}</span>
+                                    {rs.stylists?.name && (
+                                        <span className="text-slate-400 flex items-center gap-1">
+                                            <span className="material-icons-round text-xs">face</span>
+                                            {rs.stylists.name}
+                                        </span>
+                                    )}
+                                </div>
                             ))}
                         </div>
                     </div>
