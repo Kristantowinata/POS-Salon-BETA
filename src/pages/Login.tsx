@@ -2,6 +2,19 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 
+// Demo logins shown on the page so visitors can try the app right away.
+interface DemoAccount {
+    label: string;
+    email: string;
+    password: string;
+    icon: string;
+}
+
+const DEMO_ACCOUNTS: DemoAccount[] = [
+    { label: 'Owner', email: 'demo@sukimsalon.com', password: 'password', icon: 'admin_panel_settings' },
+    { label: 'Manager', email: 'demo2@sukimsalon.com', password: 'demo1234', icon: 'supervisor_account' },
+];
+
 export default function Login() {
     const { login } = useAuth();
     const [email, setEmail] = useState('demo@sukimsalon.com');
@@ -9,6 +22,12 @@ export default function Login() {
     const [error, setError] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
+
+    const fillDemo = (acc: DemoAccount) => {
+        setEmail(acc.email);
+        setPassword(acc.password);
+        setError('');
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -38,6 +57,34 @@ export default function Login() {
                         </div>
                         <h1 className="text-3xl font-bold tracking-tight text-white mb-2">SukimSalon</h1>
                         <p className="text-slate-400 text-sm font-medium">Elevated management for premium salons</p>
+                    </div>
+
+                    {/* Demo logins — click a card to autofill the form */}
+                    <div className="w-full mb-6 rounded-xl border border-primary/20 bg-primary/5 p-4">
+                        <div className="flex items-center gap-2 mb-3">
+                            <span className="material-icons-round text-primary text-lg">badge</span>
+                            <span className="text-sm font-semibold text-slate-200">Akun Demo</span>
+                            <span className="text-xs text-slate-500 ml-auto">Klik untuk isi otomatis</span>
+                        </div>
+                        <div className="space-y-2">
+                            {DEMO_ACCOUNTS.map((acc) => (
+                                <button
+                                    key={acc.email}
+                                    type="button"
+                                    onClick={() => fillDemo(acc)}
+                                    className="w-full flex items-center gap-3 text-left p-3 rounded-lg border border-[#423b54] bg-[#1f1b27]/40 hover:bg-[#1f1b27]/70 hover:border-primary/40 transition-all group"
+                                >
+                                    <span className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-primary/15 text-primary shrink-0">
+                                        <span className="material-icons-round text-lg">{acc.icon}</span>
+                                    </span>
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block text-sm font-semibold text-slate-200">{acc.label}</span>
+                                        <span className="block text-xs text-slate-400 truncate font-mono">{acc.email} · {acc.password}</span>
+                                    </span>
+                                    <span className="material-icons-round text-slate-600 group-hover:text-primary transition-colors text-lg">edit_note</span>
+                                </button>
+                            ))}
+                        </div>
                     </div>
 
                     {error && (
